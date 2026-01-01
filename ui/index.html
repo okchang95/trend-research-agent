@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent UX</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Agent Assistant</h1>
+        </header>
+        
+        <main>
+            <div class="input-section">
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="userInput" 
+                        placeholder="메시지를 입력하세요..."
+                        autocomplete="off"
+                    >
+                    <button id="searchBtn" class="search-btn">검색</button>
+                </div>
+            </div>
+            
+            <div class="response-section">
+                <div id="responseArea" class="response-area">
+                    <p class="placeholder">응답이 여기에 표시됩니다.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
+
