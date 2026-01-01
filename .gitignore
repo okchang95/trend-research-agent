@@ -4,3 +4,5 @@ __pycache__/
 docs/instruction.md
 docs/specs.md
 trash/
+logs/
+app/clients/
