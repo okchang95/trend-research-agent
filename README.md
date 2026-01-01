@@ -47,11 +47,11 @@ git clone <repository-url>
 cd agent-260104
 ```
 
-### 2. 가상 환경 생성 및 활성화
+### 2. Conda 가상 환경 생성 및 활성화
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+conda create -n research-agent python=3.13 -y
+conda activate research-agent
 ```
 
 ### 3. 의존성 설치
@@ -71,29 +71,32 @@ TAVILY_API_KEY=your_tavily_api_key  # 선택사항
 
 ### 5. 서버 실행
 
-#### 백엔드 서버
+#### 방법 1: 직접 실행 (Conda 환경)
 
 ```bash
+conda activate research-agent
 uvicorn app.main:app --reload --port 8000
 ```
 
 서버는 `http://localhost:8000`에서 실행됩니다.
 
-#### 프론트엔드 서버
+#### 방법 2: Docker 사용
 
 ```bash
-cd ui
-./serve.sh
+# Docker 이미지 빌드
+docker build -t research-agent .
+
+# Docker 컨테이너 실행
+docker run -d \
+  --name research-agent \
+  -p 8000:8000 \
+  --env-file .env \
+  research-agent
 ```
 
-또는:
+서버는 `http://localhost:8000`에서 실행됩니다.
 
-```bash
-cd ui
-python3 -m http.server 3000
-```
-
-프론트엔드는 `http://localhost:3000`에서 실행됩니다.
+**참고**: 프론트엔드는 FastAPI에서 자동으로 서빙됩니다. 별도 서버 실행이 필요 없습니다.
 
 ## API 엔드포인트
 
@@ -149,7 +152,7 @@ SSE를 통한 스트리밍 실행
 
 ## 사용법
 
-1. 브라우저에서 `http://localhost:3000` 접속
+1. 브라우저에서 `http://localhost:8000` 접속 (FastAPI가 프론트엔드도 함께 서빙)
 2. 검색창에 질문 입력 (예: "quantum computing trends", "AI research trends 2024")
 3. 검색 버튼 클릭 또는 Enter 키 입력
 4. 실시간으로 각 노드의 실행 상태 확인

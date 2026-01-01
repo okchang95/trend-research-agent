@@ -1,5 +1,6 @@
-const API_URL = 'http://localhost:8000/agent';
-const API_STREAM_URL = 'http://localhost:8000/agent/stream';
+// 프로덕션에서는 상대 경로 사용, 개발 환경에서는 절대 경로 사용
+const API_URL = window.location.origin + '/agent';
+const API_STREAM_URL = window.location.origin + '/agent/stream';
 
 // DOM 요소
 const userInput = document.getElementById('userInput');
