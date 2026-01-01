@@ -1,0 +1,31 @@
+{
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        },
+        "json": {
+            "()": "app.core.logging.JsonFormatter"
+        }
+    },
+    "handlers": {
+        "stream": {
+            "class": "logging.StreamHandler",
+            "formatter": "default"
+        },
+        "root_file": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": "logs/root.json",
+            "formatter": "json",
+            "encoding": "utf-8",
+            "when": "D",
+            "interval": 1,
+            "backupCount": 7
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["stream", "root_file"]
+    }
+}
