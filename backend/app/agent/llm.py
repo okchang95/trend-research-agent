@@ -11,11 +11,6 @@ class LLMSetup:
         temperature=0,
         api_key=openai_api_key,
     )
-    data_collection_llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0,
-        api_key=openai_api_key,
-    )
     generate_response_llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,

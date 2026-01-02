@@ -3,7 +3,6 @@ from typing import List
 import requests
 
 from langchain_community.document_loaders import ArxivLoader
-from langchain_core.documents import Document
 
 from app.agent.state import AgentState
 from app.core.config import settings

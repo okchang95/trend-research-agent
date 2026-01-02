@@ -31,7 +31,9 @@ class JsonFormatter(logging.Formatter):
 
 
 def load_logging_config():
-    with open("app/core/logging.json", "r") as f:
+    """로깅 설정 파일 로드"""
+    config_path = Path(__file__).parent / "logging.json"
+    with open(config_path, "r", encoding="utf-8") as f:
         logging_config = json.load(f)
     return logging_config
 

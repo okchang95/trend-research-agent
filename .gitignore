@@ -1,8 +1,49 @@
-.env
+# Python
 __pycache__/
-.DS_Store
-docs/instruction.md
-docs/specs.md
-trash/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Conda
+.conda/
+miniconda3/
+anaconda3/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+
+# 환경 변수
+.env
+.env.local
+
+# 로그
 logs/
-app/clients/
+*.log
+
+# 테스트
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 기타
+.DS_Store
+*.pyc
+trash/
+images/
+*.png
+*.jpg
+
+# Docker
+.dockerignore

@@ -1,6 +1,6 @@
-// 프로덕션에서는 상대 경로 사용, 개발 환경에서는 절대 경로 사용
-const API_URL = window.location.origin + '/agent';
-const API_STREAM_URL = window.location.origin + '/agent/stream';
+// API 엔드포인트 (/api prefix 사용)
+const API_URL = window.location.origin + '/api/agent';
+const API_STREAM_URL = window.location.origin + '/api/agent/stream';
 
 // DOM 요소
 const userInput = document.getElementById('userInput');
