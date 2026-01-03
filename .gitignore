@@ -42,6 +42,8 @@ htmlcov/
 *.pyc
 trash/
 images/
+docs/
+backend/legaccy/
 *.png
 *.jpg
 
