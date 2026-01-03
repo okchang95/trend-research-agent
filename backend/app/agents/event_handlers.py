@@ -6,6 +6,8 @@ import logging
 from typing import AsyncIterator, Dict, Set, Optional
 from dataclasses import dataclass, field
 
+from langgraph.types import Command
+
 from app.agents.streaming import (
     build_research_status_end,
     build_research_status_start,
@@ -254,10 +256,19 @@ class StreamEventHandler:
         output = event.get("data", {}).get("output", {})
         
         # Command를 사용하는 경우 output이 Command 객체일 수 있음
-        if hasattr(output, "update"):
+        # dict인지 먼저 확인 (dict.update는 메서드이므로 hasattr로는 구분 불가)
+        if isinstance(output, dict):
+            # dict에 "update" 키가 있는 경우
+            if "update" in output:
+                output = output["update"]
+            elif not output:
+                output = {}
+        # Command 객체인 경우 (dict가 아닌 경우)
+        elif isinstance(output, Command):
             output = output.update
-        elif isinstance(output, dict) and "update" in output:
-            output = output["update"]
+        elif hasattr(output, "update") and not isinstance(output, dict):
+            # Command 객체이지만 isinstance 체크가 실패한 경우 (fallback)
+            output = output.update
         elif not output:
             output = {}
         
