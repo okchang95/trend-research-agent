@@ -129,13 +129,8 @@ class ChatService:
         SSE를 위한 스트리밍 대화
         각 노드의 실행 결과와 최종 텍스트를 스트리밍으로 전송
         """
-        import uuid
-
         # session_id가 없으면 새로운 세션 생성
-        if not session_id:
-            logger.info(f"No session_id provided. Creating new session.")
-            session_id = str(uuid.uuid4())
-            logger.info(f"New session_id: {session_id}")
+        session_id = self._ensure_session_id(session_id)
 
         session = SessionManager.get_or_create_session(session_id)
         conversations_summary = session.get("conversations_summary", "")

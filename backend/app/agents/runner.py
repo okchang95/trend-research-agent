@@ -1,21 +1,12 @@
 import logging
+import uuid
 from typing import AsyncIterator, List, Dict
 
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.graph import graph_builder
 from app.agents.state import AgentState
-from app.agents.streaming import (
-    build_research_status_end,
-    build_research_status_start,
-    extract_event_node_name,
-    extract_streaming_content,
-    extract_tool_call_query,
-    extract_tool_calls_from_output,
-    parse_tool_output,
-    select_graph_node,
-    should_filter_json,
-)
+from app.agents.event_handlers import StreamEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +51,6 @@ class AgentRunner:
         SSE를 위한 스트리밍 실행
         astream_events를 사용하여 노드 시작/완료 이벤트를 정확히 감지
         """
-        import uuid
-
         # AgentState의 모든 필수 필드 초기화
         initial_state = AgentState(
             current_node="",
@@ -77,20 +66,14 @@ class AgentRunner:
             answer="",
         )
 
+        # 이벤트 핸들러 초기화
+        event_handler = StreamEventHandler()
+        event_handler.reset()
+
         try:
             # 체크포인트용 thread_id 생성
             thread_id = str(uuid.uuid4())
             config = {"configurable": {"thread_id": thread_id}}
-
-            final_state = None
-            last_answer = ""
-            processed_nodes = set()  # 처리된 노드 추적
-            current_streaming_text = ""  # 현재 스트리밍 중인 텍스트
-            current_node_name = None  # 현재 실행 중인 노드 이름
-            streaming_buffer = ""  # JSON 필터링을 위한 버퍼
-            researcher_llm_detected = False  # researcher 노드의 LLM 호출 감지 플래그
-            tool_call_count = 0  # 도구 호출 횟수 추적
-            pending_tool_calls = {}  # 도구 호출 ID와 쿼리를 매핑
 
             # astream_events를 사용하여 노드 시작/완료 이벤트 감지
             # LLM 스트리밍을 포함한 모든 이벤트 감지
@@ -109,328 +92,28 @@ class AgentRunner:
             ):
                 event_type = event.get("event", "")
 
-                # 도구 실행 시작 이벤트 감지 (조사 상태 업데이트)
+                # 이벤트 타입별 핸들러 호출
                 if event_type == "on_tool_start":
-                    # researcher 노드에서만 처리
-                    if current_node_name == "researcher":
-                        tool_name = event.get("name", "")
-                        parent_ids = event.get("parent_ids", [])
-
-                        # pending_tool_calls에서 쿼리 찾기 (parent_ids를 통해 tool_call_id 매칭)
-                        query = ""
-                        for parent_id in parent_ids:
-                            if parent_id in pending_tool_calls:
-                                tool_info = pending_tool_calls[parent_id]
-                                if tool_info["name"] == tool_name:
-                                    query = tool_info["query"]
-                                    break
-
-                        # 조사 상태 메시지 전송
-                        tool_call_count += 1
-                        status_message = build_research_status_start(
-                            tool_name=tool_name,
-                            tool_call_count=tool_call_count,
-                            query=query,
-                        )
-
-                        yield {
-                            "type": "research_status",
-                            "message": status_message,
-                        }
-
-                # 도구 실행 완료 이벤트 감지 (조사 상태 업데이트)
-                if event_type == "on_tool_end":
-                    # researcher 노드에서만 처리
-                    if current_node_name == "researcher":
-                        tool_name = event.get("name", "")
-                        event_data = event.get("data", {})
-                        tool_output = event_data.get("output", "")
-
-                        # 도구 결과에서 링크와 스니펫 추출
-                        formatted_results = parse_tool_output(tool_output)
-
-                        # 조사 완료 후 결과 분석 단계 표시
-                        status_message = build_research_status_end(tool_name)
-
-                        # 검색 결과와 함께 상태 메시지 전송
-                        yield {
-                            "type": "research_status",
-                            "message": status_message,
-                            "results": formatted_results if formatted_results else None,
-                        }
-
-                        # 결과 분석 후 다음 검색 결정 단계
-                        yield {
-                            "type": "research_status",
-                            "message": "추가 검색 필요성 판단 중...",
-                        }
-
-                        researcher_llm_detected = False
-
-                # LLM 응답 완료 이벤트에서 tool_calls 추출
-                if event_type == "on_chat_model_end":
-                    # researcher 노드에서만 처리
-                    if current_node_name == "researcher":
-                        output = event.get("data", {}).get("output", None)
-                        if output:
-                            tool_calls = extract_tool_calls_from_output(output)
-                            if tool_calls:
-                                pending_tool_calls.update(
-                                    extract_tool_call_query(tool_calls)
-                                )
-
-                # LLM 스트리밍 출력 감지 (실시간 텍스트 스트리밍)
-                if event_type == "on_chat_model_stream":
-                    # clarify_requirement 노드는 스트리밍하지 않음 (구조화된 출력 사용)
-                    if current_node_name == "clarify_requirement":
-                        continue
-
-                    # researcher 노드의 중간 텍스트 출력은 제거 (메타 정보만 유지)
-                    if current_node_name == "researcher":
-                        continue
-
-                    # 스트리밍 중인 텍스트 청크 추출
-                    chunk = event.get("data", {}).get("chunk", None)
-                    if chunk:
-                        content = extract_streaming_content(chunk)
-
-                        if content:
-                            # JSON 필터링: 버퍼에 추가
-                            streaming_buffer += content
-
-                            # JSON 형식이면 필터링
-                            is_json, _ = should_filter_json(streaming_buffer)
-                            if is_json:
-                                logger.debug(
-                                    "Filtered JSON content from streaming: %s",
-                                    streaming_buffer[:100],
-                                )
-                                streaming_buffer = ""
-                                continue
-
-                            # 버퍼가 일정 길이 이상이면 스트리밍
-                            if len(streaming_buffer) >= 5:
-                                current_streaming_text += streaming_buffer
-                                for char in streaming_buffer:
-                                    yield {
-                                        "type": "text_chunk",
-                                        "char": char,
-                                    }
-                                streaming_buffer = ""
-
-                # Command 이벤트 감지 (노드 전환 시)
+                    async for e in event_handler.handle_tool_start(event):
+                        yield e
+                elif event_type == "on_tool_end":
+                    async for e in event_handler.handle_tool_end(event):
+                        yield e
+                elif event_type == "on_chat_model_end":
+                    await event_handler.handle_chat_model_end(event)
+                elif event_type == "on_chat_model_stream":
+                    async for e in event_handler.handle_chat_model_stream(event):
+                        yield e
                 elif event_type == "on_chain_start":
-                    # 노드 이름 추출
-                    name = extract_event_node_name(event)
-
-                    # 노드 이름이 우리의 노드 중 하나인지 확인
-                    # 이름이 경로 형식일 수 있으므로 포함 여부로 확인
-                    node_name = select_graph_node(name)
-                    if node_name:
-
-                        if node_name and node_name not in processed_nodes:
-                            processed_nodes.add(node_name)
-                            logger.info(f"Node started: {node_name}")
-
-                            # 현재 노드 이름 업데이트
-                            current_node_name = node_name
-
-                            # researcher 노드 시작 시 세분화된 상태 표시
-                            if node_name == "researcher":
-                                researcher_llm_detected = False  # 플래그 초기화
-                                tool_call_count = 0  # 도구 호출 횟수 초기화
-                                yield {
-                                    "type": "research_status",
-                                    "message": "연구 요구사항 분석 중...",
-                                }
-                            # clarify_requirement와 writer는 진행 상태를 표시하지 않음
-                            elif node_name not in ["clarify_requirement", "writer"]:
-                                yield {
-                                    "type": "node_start",
-                                    "node": node_name,
-                                    "status": "진행 중",
-                                }
-                            # 새로운 노드 시작 시 스트리밍 텍스트 및 버퍼 초기화
-                            # 단, clarify_requirement에서 researcher로 넘어갈 때는 스트리밍 텍스트 유지
-                            if node_name != "researcher":
-                                current_streaming_text = ""
-                            streaming_buffer = ""
-
-                    # researcher 노드 내부의 세부 단계 감지
-                    # researcher 노드가 실행 중일 때, 내부의 모든 체인을 감지
-                    if current_node_name == "researcher":
-                        # 이미 처리된 노드가 아니고, researcher 노드 자체가 아닌 경우
-                        # 즉, researcher 노드 내부의 체인인 경우
-                        if node_name != "researcher" and node_name is None:
-                            # LLM 호출 감지 (검색 쿼리 생성 및 전략 수립)
-                            if (
-                                "ChatOpenAI" in name
-                                or "ChatModel" in name
-                                or ("chat" in name.lower() and "model" in name.lower())
-                            ):
-                                # 도구 호출이 아닌 순수 LLM 호출인 경우
-                                if (
-                                    "tool" not in name.lower()
-                                    and "bind" not in name.lower()
-                                    and "tavily" not in name.lower()
-                                    and "arxiv" not in name.lower()
-                                    and not researcher_llm_detected
-                                ):
-                                    researcher_llm_detected = True
-                                    yield {
-                                        "type": "research_status",
-                                        "message": "검색 전략 수립 중...",
-                                    }
-
-                # 노드 완료 이벤트 감지
+                    async for e in event_handler.handle_chain_start(event):
+                        yield e
                 elif event_type == "on_chain_end":
-                    # 노드 이름 추출
-                    name = extract_event_node_name(event)
-
-                    # 노드 이름이 우리의 노드 중 하나인지 확인 (경로 형식 고려)
-                    node_name = select_graph_node(name)
-
-                    if node_name:
-                        # 현재 노드 이름 업데이트
-                        current_node_name = node_name
-
-                        # 출력 데이터 추출 (Command의 update 또는 일반 state)
-                        output = event.get("data", {}).get("output", {})
-
-                        # Command를 사용하는 경우 output이 Command 객체일 수 있음
-                        # Command의 update 필드에서 실제 상태 추출
-                        if hasattr(output, "update"):
-                            output = output.update
-                        elif isinstance(output, dict) and "update" in output:
-                            output = output["update"]
-                        elif not output:
-                            output = {}
-
-                        logger.info(
-                            f"Node completed: {node_name}, output keys: {list(output.keys()) if isinstance(output, dict) else 'N/A'}"
-                        )
-
-                        # researcher 노드 완료 시 findings 전송
-                        if node_name == "researcher" and isinstance(output, dict):
-                            findings = output.get("findings", [])
-                            if findings:
-                                # findings를 전송 (토글 형태로 표시하기 위해)
-                                yield {
-                                    "type": "research_findings",
-                                    "findings": findings,
-                                }
-
-                        yield {
-                            "type": "node_complete",
-                            "node": node_name,
-                            "status": "완료",
-                            "state": {
-                                "current_node": (
-                                    output.get("current_node", "")
-                                    if isinstance(output, dict)
-                                    else ""
-                                ),
-                                "is_clarified": (
-                                    output.get("is_clarified", False)
-                                    if isinstance(output, dict)
-                                    else False
-                                ),
-                                "subject": (
-                                    output.get("subject", "")
-                                    if isinstance(output, dict)
-                                    else ""
-                                ),
-                                "scope": (
-                                    output.get("scope", "")
-                                    if isinstance(output, dict)
-                                    else ""
-                                ),
-                                "findings_count": (
-                                    len(output.get("findings", []))
-                                    if isinstance(output, dict)
-                                    else 0
-                                ),
-                            },
-                        }
-
-                        # answer가 변경되었는지 확인
-                        # 스트리밍으로 이미 전송된 텍스트는 제외
-                        if isinstance(output, dict):
-                            current_answer = output.get("answer", "")
-                            # is_clarified가 True이면 answer를 스트리밍하지 않음
-                            is_clarified = output.get("is_clarified", False)
-
-                            if current_answer and not (
-                                node_name == "clarify_requirement" and is_clarified
-                            ):
-                                # clarify_requirement 노드의 answer도 스트리밍 (is_clarified가 False일 때만)
-                                if node_name == "clarify_requirement":
-                                    # clarify_requirement 노드는 처음부터 스트리밍
-                                    if current_answer != current_streaming_text:
-                                        # 아직 스트리밍되지 않은 전체 텍스트를 스트리밍
-                                        remaining_text = current_answer[
-                                            len(current_streaming_text) :
-                                        ]
-                                        if remaining_text:
-                                            for char in remaining_text:
-                                                yield {
-                                                    "type": "text_chunk",
-                                                    "char": char,
-                                                }
-                                            current_streaming_text = current_answer
-
-                                    # clarify_requirement 노드의 answer 스트리밍이 완료되었는지 확인
-                                    # 스트리밍이 완료되면 scoping_complete 이벤트 전송
-                                    if (
-                                        current_answer == current_streaming_text
-                                        and len(current_answer) > 0
-                                    ):
-                                        yield {
-                                            "type": "scoping_complete",
-                                        }
-                                        logger.info(
-                                            "clarify_requirement answer streaming completed"
-                                        )
-                                else:
-                                    # 다른 노드는 기존 로직 유지
-                                    if current_answer != current_streaming_text:
-                                        # 스트리밍으로 전송되지 않은 부분만 확인
-                                        remaining_text = current_answer[
-                                            len(current_streaming_text) :
-                                        ]
-                                        if remaining_text:
-                                            for char in remaining_text:
-                                                yield {
-                                                    "type": "text_chunk",
-                                                    "char": char,
-                                                }
-                                            current_streaming_text = current_answer
-
-                                # 최종 상태 업데이트
-                                last_answer = current_answer
-                                final_state = output
+                    async for e in event_handler.handle_chain_end(event):
+                        yield e
 
             # 최종 상태 전송
-            if final_state:
-                final_answer = final_state.get("answer", "")
-                # 마지막 남은 텍스트가 있으면 전송
-                if final_answer and final_answer != last_answer:
-                    remaining_text = final_answer[len(last_answer) :]
-                    for char in remaining_text:
-                        yield {
-                            "type": "text_chunk",
-                            "char": char,
-                        }
-
-                yield {
-                    "type": "final",
-                    "state": {
-                        "answer": final_answer,
-                        "is_clarified": final_state.get("is_clarified", False),
-                        "subject": final_state.get("subject", ""),
-                        "scope": final_state.get("scope", ""),
-                    },
-                }
+            async for e in event_handler.handle_final_state():
+                yield e
 
         except Exception as e:
             logger.error(f"Streaming error: {e}")
