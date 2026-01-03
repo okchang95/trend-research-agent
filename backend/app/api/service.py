@@ -5,7 +5,6 @@ from typing import AsyncIterator, Dict
 
 from app.agents.runner import AgentRunner
 from app.api.session import SessionManager
-from app.utils import date_to_str_recursive
 
 logger = logging.getLogger(__name__)
 
