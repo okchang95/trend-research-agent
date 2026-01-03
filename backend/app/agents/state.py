@@ -7,7 +7,6 @@ class AgentState(TypedDict):
     user_message: str
     conversations: List[dict]
     conversations_summary: str
-    thinking_message: str
 
     # scoping
     is_clarified: bool
