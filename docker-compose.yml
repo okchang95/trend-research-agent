@@ -38,6 +38,7 @@ services:
       - app-network
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL 인증서 마운트
 
 networks:
   app-network:
