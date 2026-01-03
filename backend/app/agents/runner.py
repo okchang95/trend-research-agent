@@ -127,10 +127,6 @@ class AgentRunner:
 
                         # 조사 상태 메시지 전송
                         tool_call_count += 1
-                        if (
-                            "tavily" in tool_name.lower()
-                            or "search" in tool_name.lower()
-                        ):
                         status_message = build_research_status_start(
                             tool_name=tool_name,
                             tool_call_count=tool_call_count,
