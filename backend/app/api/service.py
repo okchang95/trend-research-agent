@@ -5,7 +5,6 @@ from typing import AsyncIterator, Dict
 
 from app.agents.runner import AgentRunner
 from app.api.session import SessionManager
-from app.utils import date_to_str_recursive
 
 logger = logging.getLogger(__name__)
 
@@ -15,53 +14,77 @@ class ChatService:
         self.agent_runner = AgentRunner()
 
     async def conversation(self, session_id: str, user_message: str):
-
-        # session_id가 없으면 새로운 세션 생성
-        if not session_id:
-            logger.info(f"No session_id provided. Creating new session.")
-            session_id = str(uuid.uuid4())
-            logger.info(f"New session_id: {session_id}")
-
+        session_id = self._ensure_session_id(session_id)
         session = SessionManager.get_or_create_session(session_id)
         conversations_summary = session.get("conversations_summary", "")
 
-        # 메시지 추가
         SessionManager.add_message(session_id, "user", user_message)
 
-        # 에이전트 실행
-        try:
-            response = await self.agent_runner.run(
-                user_message=user_message,
-                conversations=session.get("conversations", []),
-                conversations_summary=conversations_summary,
-            )
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            response = {"answer": "응답 실패"}
+        response = await self._run_agent(
+            user_message=user_message,
+            conversations=session.get("conversations", []),
+            conversations_summary=conversations_summary,
+        )
 
-        # 메시지 추가
         assistant_message = response.get("answer", "")
         SessionManager.add_message(session_id, "assistant", assistant_message)
 
-        # 컨텍스트 요약 업데이트 (10턴 = 20개 메시지에서 최근 6턴 = 12개 메시지를 남기고 나머지 요약)
-        conversations = session.get("conversations", [])
-        if len(conversations) >= 20:  # 10턴 = 20개 메시지
-            # 최근 6턴(12개 메시지)은 유지, 나머지 4턴(8개 메시지)은 요약
-            old_conversations = conversations[:-12]  # 요약할 대화 (4턴 = 8개 메시지)
-            recent_conversations = conversations[-12:]  # 유지할 대화 (6턴 = 12개 메시지)
-
-            new_summized_conversations = await self._summarize_context(
-                old_conversations, conversations_summary
-            )
-            SessionManager.set_conversations_summary(
-                session_id, new_summized_conversations
-            )
-            SessionManager.update_messages(session_id, recent_conversations)
+        await self._summarize_if_needed(
+            session_id=session_id,
+            session=session,
+            conversations_summary=conversations_summary,
+        )
 
         return {
             "assistant_message": assistant_message,
             "session_id": session_id,
         }
+
+    def _ensure_session_id(self, session_id: str) -> str:
+        if session_id:
+            return session_id
+
+        logger.info("No session_id provided. Creating new session.")
+        new_session_id = str(uuid.uuid4())
+        logger.info("New session_id: %s", new_session_id)
+        return new_session_id
+
+    async def _run_agent(
+        self,
+        user_message: str,
+        conversations: list,
+        conversations_summary: str,
+    ) -> dict:
+        try:
+            return await self.agent_runner.run(
+                user_message=user_message,
+                conversations=conversations,
+                conversations_summary=conversations_summary,
+            )
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return {"answer": "응답 실패"}
+
+    async def _summarize_if_needed(
+        self,
+        session_id: str,
+        session: dict,
+        conversations_summary: str,
+    ) -> None:
+        conversations = session.get("conversations", [])
+        if len(conversations) < 20:
+            return
+
+        old_conversations = conversations[:-12]
+        recent_conversations = conversations[-12:]
+
+        new_summized_conversations = await self._summarize_context(
+            old_conversations, conversations_summary
+        )
+        SessionManager.set_conversations_summary(
+            session_id, new_summized_conversations
+        )
+        SessionManager.update_messages(session_id, recent_conversations)
 
     async def _summarize_context(self, conversations, conversations_summary):
         from langchain_openai import ChatOpenAI
