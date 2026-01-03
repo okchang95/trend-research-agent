@@ -210,7 +210,7 @@ function handleStreamEvent(event) {
                     }
                     
                     // 마크다운을 HTML로 변환
-                    let html = marked.parse(processedText);
+                    let html = safeMarkdownParse(processedText);
                     
                     // 플레이스홀더를 실제 Mermaid div로 교체
                     if (typeof mermaid !== 'undefined' && mermaidPlaceholders.length > 0) {
@@ -259,9 +259,21 @@ function handleStreamEvent(event) {
         }
     } else if (event.type === 'research_status') {
         // 조사 상태 메시지 업데이트 (한 줄로 동적 업데이트)
+        // research 중일 때는 "생각중..." 타이머 중지
+        if (thinkingTimer) {
+            clearTimeout(thinkingTimer);
+            thinkingTimer = null;
+        }
+        hideThinkingIndicator();
         updateResearchStatus(event.message, event.results);
     } else if (event.type === 'research_findings') {
         // 조사 내용을 토글 형태로 표시
+        // research 완료 후에도 "생각중..." 타이머 중지
+        if (thinkingTimer) {
+            clearTimeout(thinkingTimer);
+            thinkingTimer = null;
+        }
+        hideThinkingIndicator();
         displayResearchFindings(event.findings);
     } else if (event.type === 'text_chunk') {
         // scoping_complete가 true이면 clarify_requirement의 answer 스트리밍을 중단
@@ -338,8 +350,8 @@ function updateNodeStatus(nodeName, nodeState, status = '완료') {
                 statusText = '명확화 완료';
             break;
             case 'researcher':
-                statusIcon = '✅';
-                statusText = `수집 완료 (${nodeState?.findings_count || 0}개)`;
+                // 수집 완료 표시 제거
+                return; // researcher 노드는 완료 상태를 표시하지 않음
             break;
             case 'writer':
                 statusIcon = '✅';
@@ -422,7 +434,7 @@ function addAssistantMessage(initialText, messageId) {
     }
     
         // 마크다운을 HTML로 변환
-    let html = processedText ? marked.parse(processedText) : '';
+    let html = processedText ? safeMarkdownParse(processedText) : '';
     
     // 플레이스홀더를 실제 Mermaid div로 교체
     if (typeof mermaid !== 'undefined' && mermaidPlaceholders.length > 0) {
@@ -486,7 +498,7 @@ function updateStreamingMessage(messageId, text, isFinal = false) {
     }
     
     // 마크다운을 HTML로 변환
-    let html = marked.parse(processedText);
+    let html = safeMarkdownParse(processedText);
     
     // 플레이스홀더를 실제 Mermaid div로 교체
     if (typeof mermaid !== 'undefined' && mermaidPlaceholders.length > 0) {
@@ -738,6 +750,68 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// 마크다운 파싱 실패 시 백틱 문제를 수정하는 함수
+function fixMarkdownBackticks(text) {
+    if (!text || typeof text !== 'string') {
+        return text || '';
+    }
+    
+    // 코드 블록 백틱 짝 맞추기 (```로 시작했는데 닫히지 않은 경우)
+    const codeBlockRegex = /```[\s\S]*?/g;
+    let codeBlockCount = 0;
+    let fixedText = text;
+    
+    // 모든 코드 블록 시작/끝 찾기
+    const matches = text.match(/```/g);
+    if (matches) {
+        codeBlockCount = matches.length;
+        // 홀수 개면 마지막 백틱 3개 추가
+        if (codeBlockCount % 2 !== 0) {
+            fixedText = text + '\n```';
+        }
+    }
+    
+    // 인라인 코드 백틱 짝 맞추기 (`로 시작했는데 닫히지 않은 경우)
+    const inlineCodeRegex = /`/g;
+    const inlineMatches = fixedText.match(inlineCodeRegex);
+    if (inlineMatches) {
+        const inlineCount = inlineMatches.length;
+        // 홀수 개면 마지막 백틱 추가
+        if (inlineCount % 2 !== 0) {
+            fixedText = fixedText + '`';
+        }
+    }
+    
+    return fixedText;
+}
+
+// 마크다운 파싱을 안전하게 수행하는 함수
+function safeMarkdownParse(text) {
+    if (!text || typeof text !== 'string') {
+        return '';
+    }
+    
+    try {
+        if (typeof marked === 'undefined') {
+            // marked가 없으면 기본 이스케이프 처리
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+        
+        return marked.parse(text);
+    } catch (e) {
+        console.warn('Markdown parsing failed, attempting to fix backticks:', e);
+        // 파싱 실패 시 백틱 문제 수정 후 재시도
+        try {
+            const fixedText = fixMarkdownBackticks(text);
+            return marked.parse(fixedText);
+        } catch (e2) {
+            console.error('Markdown parsing failed even after fixing:', e2);
+            // 그래도 실패하면 기본 텍스트로 표시
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+    }
 }
 
 // "생각중..." 표시 함수

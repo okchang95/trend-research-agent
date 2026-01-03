@@ -81,6 +81,7 @@ class AgentRunner:
             streaming_buffer = ""  # JSON 필터링을 위한 버퍼
             researcher_llm_detected = False  # researcher 노드의 LLM 호출 감지 플래그
             tool_call_count = 0  # 도구 호출 횟수 추적
+            pending_tool_calls = {}  # 도구 호출 ID와 쿼리를 매핑
 
             # astream_events를 사용하여 노드 시작/완료 이벤트 감지
             # LLM 스트리밍을 포함한 모든 이벤트 감지
@@ -92,6 +93,7 @@ class AgentRunner:
                     "on_chain_start",
                     "on_chain_end",
                     "on_chat_model_stream",
+                    "on_chat_model_end",
                     "on_tool_start",
                     "on_tool_end",
                 ],
@@ -103,52 +105,40 @@ class AgentRunner:
                     # researcher 노드에서만 처리
                     if current_node_name == "researcher":
                         tool_name = event.get("name", "")
-                        tool_input = event.get("data", {}).get("input", {})
+                        parent_ids = event.get("parent_ids", [])
 
-                        # 쿼리 추출
+                        # pending_tool_calls에서 쿼리 찾기 (parent_ids를 통해 tool_call_id 매칭)
                         query = ""
-                        if isinstance(tool_input, dict):
-                            query = tool_input.get("query", "")
-                        elif isinstance(tool_input, str):
-                            # 문자열인 경우 JSON 파싱 시도
-                            try:
-                                import json
+                        for parent_id in parent_ids:
+                            if parent_id in pending_tool_calls:
+                                tool_info = pending_tool_calls[parent_id]
+                                if tool_info["name"] == tool_name:
+                                    query = tool_info["query"]
+                                    break
 
-                                tool_input_dict = json.loads(tool_input)
-                                query = tool_input_dict.get("query", "")
-                            except:
-                                query = tool_input
-
-                        # 조사 상태 메시지 전송 (더 구체적으로)
+                        # 조사 상태 메시지 전송
                         tool_call_count += 1
                         if (
                             "tavily" in tool_name.lower()
                             or "search" in tool_name.lower()
                         ):
-                            if query:
-                                status_message = (
-                                    f'[{tool_call_count}] 웹 검색 실행: "{query}"'
-                                )
-                            else:
-                                status_message = (
-                                    f"[{tool_call_count}] 웹 검색 실행 중..."
-                                )
+                            status_message = (
+                                f'[{tool_call_count}] 웹 검색 실행: "{query}"'
+                                if query
+                                else f"[{tool_call_count}] 웹 검색 실행 중..."
+                            )
                         elif "arxiv" in tool_name.lower():
-                            if query:
-                                status_message = (
-                                    f'[{tool_call_count}] 논문 검색 실행: "{query}"'
-                                )
-                            else:
-                                status_message = (
-                                    f"[{tool_call_count}] 논문 검색 실행 중..."
-                                )
+                            status_message = (
+                                f'[{tool_call_count}] 논문 검색 실행: "{query}"'
+                                if query
+                                else f"[{tool_call_count}] 논문 검색 실행 중..."
+                            )
                         else:
-                            if query:
-                                status_message = (
-                                    f'[{tool_call_count}] 정보 수집: "{query}"'
-                                )
-                            else:
-                                status_message = f"[{tool_call_count}] 정보 수집 중..."
+                            status_message = (
+                                f'[{tool_call_count}] 정보 수집: "{query}"'
+                                if query
+                                else f"[{tool_call_count}] 정보 수집 중..."
+                            )
 
                         yield {
                             "type": "research_status",
@@ -160,63 +150,34 @@ class AgentRunner:
                     # researcher 노드에서만 처리
                     if current_node_name == "researcher":
                         tool_name = event.get("name", "")
-                        tool_input = event.get("data", {}).get("input", {})
-                        # tool_output 추출 - 여러 경로 시도
                         event_data = event.get("data", {})
-                        tool_output = (
-                            event_data.get("output")
-                            or event_data.get("chunk")
-                            or event.get("output")
-                            or ""
-                        )
-                        # 디버깅을 위한 로그
-                        if tool_output:
-                            logger.info(
-                                f"Tool output type: {type(tool_output)}, length: {len(str(tool_output)) if tool_output else 0}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Tool output is empty for tool: {tool_name}, event keys: {list(event.keys())}, data keys: {list(event_data.keys()) if event_data else []}"
-                            )
-
-                        # 쿼리 추출
-                        query = ""
-                        if isinstance(tool_input, dict):
-                            query = tool_input.get("query", "")
-                        elif isinstance(tool_input, str):
-                            # 문자열인 경우 JSON 파싱 시도
-                            try:
-                                import json
-
-                                tool_input_dict = json.loads(tool_input)
-                                query = tool_input_dict.get("query", "")
-                            except:
-                                query = tool_input
+                        tool_output = event_data.get("output", "")
 
                         # 도구 결과에서 링크와 스니펫 추출
-                        search_results = []
+                        formatted_results = []
                         if tool_output:
                             try:
                                 import json
 
-                                # tool_output이 문자열인 경우 JSON 파싱
+                                # tool_output 파싱
                                 if isinstance(tool_output, str):
                                     try:
                                         parsed_output = json.loads(tool_output)
-                                        if isinstance(parsed_output, list):
-                                            search_results = parsed_output
-                                        elif isinstance(parsed_output, dict):
-                                            search_results = [parsed_output]
+                                        search_results = (
+                                            parsed_output
+                                            if isinstance(parsed_output, list)
+                                            else [parsed_output]
+                                        )
                                     except json.JSONDecodeError:
-                                        # JSON이 아닌 경우 문자열 그대로 사용
-                                        pass
+                                        search_results = []
                                 elif isinstance(tool_output, list):
                                     search_results = tool_output
                                 elif isinstance(tool_output, dict):
                                     search_results = [tool_output]
+                                else:
+                                    search_results = []
 
-                                # 결과를 정리 (최대 3개만 표시)
-                                formatted_results = []
+                                # 결과 정리 (최대 3개만 표시)
                                 for result in search_results[:3]:
                                     if isinstance(result, dict):
                                         formatted_results.append(
@@ -231,12 +192,10 @@ class AgentRunner:
                                                     ),
                                                 ),
                                                 "snippet": (
-                                                    result.get(
-                                                        "content",
-                                                        result.get(
-                                                            "Content",
-                                                            result.get("summary", ""),
-                                                        ),
+                                                    (
+                                                        result.get("content")
+                                                        or result.get("Content")
+                                                        or result.get("summary", "")
                                                     )[:200]
                                                     if result.get("content")
                                                     or result.get("Content")
@@ -272,10 +231,42 @@ class AgentRunner:
                             "message": "추가 검색 필요성 판단 중...",
                         }
 
-                        # 판단 후 다시 전략 수립 단계로
-                        researcher_llm_detected = (
-                            False  # 다음 LLM 호출을 위해 플래그 리셋
-                        )
+                        researcher_llm_detected = False
+
+                # LLM 응답 완료 이벤트에서 tool_calls 추출
+                if event_type == "on_chat_model_end":
+                    # researcher 노드에서만 처리
+                    if current_node_name == "researcher":
+                        output = event.get("data", {}).get("output", None)
+                        if output:
+                            # output에서 tool_calls 추출
+                            tool_calls = None
+                            if hasattr(output, "tool_calls") and output.tool_calls:
+                                tool_calls = output.tool_calls
+                            elif isinstance(output, dict) and "tool_calls" in output:
+                                tool_calls = output.get("tool_calls", [])
+
+                            # tool_calls에서 쿼리 추출하여 pending_tool_calls에 저장
+                            if tool_calls:
+                                for tool_call in tool_calls:
+                                    if isinstance(tool_call, dict):
+                                        tool_call_id = tool_call.get("id", "")
+                                        tool_name = tool_call.get("name", "")
+                                        tool_args = tool_call.get("args", {})
+                                        query = (
+                                            tool_args.get("query", "")
+                                            if isinstance(tool_args, dict)
+                                            else ""
+                                        )
+
+                                        if query and tool_call_id:
+                                            pending_tool_calls[tool_call_id] = {
+                                                "name": tool_name,
+                                                "query": query,
+                                            }
+                                            logger.debug(
+                                                f"Stored tool call: {tool_call_id} -> {tool_name}: {query}"
+                                            )
 
                 # LLM 스트리밍 출력 감지 (실시간 텍스트 스트리밍)
                 if event_type == "on_chat_model_stream":
@@ -461,12 +452,6 @@ class AgentRunner:
 
                         # researcher 노드 완료 시 findings 전송
                         if node_name == "researcher" and isinstance(output, dict):
-                            # 최종 요약 단계 표시 (writer 노드 시작 전에만 표시)
-                            yield {
-                                "type": "research_status",
-                                "message": "수집된 정보 종합 및 요약 중...",
-                            }
-
                             findings = output.get("findings", [])
                             if findings:
                                 # findings를 전송 (토글 형태로 표시하기 위해)
