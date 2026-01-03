@@ -6,32 +6,70 @@
     <title>Agent UX</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Agent Assistant</h1>
-        </header>
+    <!-- 왼쪽 사이드바 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>Trend Agent demo</h1>
+        </div>
+    </aside>
+    
+    <!-- 메인 콘텐츠 영역 -->
+    <main>
+        <!-- 서비스 소개 섹션 (최초 대화 이전) -->
+        <div id="introSection" class="intro-section">
+            <div class="intro-content">
+                <h2>🤖 AI 트렌드 분석 어시스턴트</h2>
+                <p class="intro-description">
+                    최신 기술 트렌드와 연구 동향을 분석하여 종합 보고서를 제공하는 AI 어시스턴트입니다.
+                </p>
+                <div class="intro-features">
+                    <div class="feature-item">
+                        <span class="feature-icon">🔍</span>
+                        <div>
+                            <h3>요구사항 명확화</h3>
+                            <p>대화를 통해 분석하고 싶은 주제를 명확히 파악합니다.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">📚</span>
+                        <div>
+                            <h3>자료 수집</h3>
+                            <p>웹 검색과 학술 논문 검색을 통해 최신 정보를 수집합니다.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">✍️</span>
+                        <div>
+                            <h3>보고서 작성</h3>
+                            <p>수집된 자료를 바탕으로 체계적인 마크다운 보고서를 생성합니다.</p>
+                        </div>
+                    </div>
+                </div>
+                <p class="intro-start">아래 입력창에 분석하고 싶은 주제를 입력해주세요.</p>
+            </div>
+        </div>
         
-        <main>
-            <div class="input-section">
-                <div class="input-wrapper">
-                    <input 
-                        type="text" 
-                        id="userInput" 
-                        placeholder="메시지를 입력하세요..."
-                        autocomplete="off"
-                    >
-                    <button id="searchBtn" class="search-btn">검색</button>
-                </div>
+        <!-- 대화 영역 (대화 시작 후 표시) -->
+        <div id="chatSection" class="chat-section" style="display: none;">
+            <div id="messagesContainer" class="messages-container">
             </div>
-            
-            <div class="response-section">
-                <div id="responseArea" class="response-area">
-                    <p class="placeholder">응답이 여기에 표시됩니다.</p>
-                </div>
-            </div>
-        </main>
+        </div>
+    </main>
+    
+    <!-- 입력 섹션 (고정) -->
+    <div class="input-section">
+        <div class="input-wrapper">
+            <input 
+                type="text" 
+                id="userInput" 
+                placeholder="분석하고 싶은 주제를 입력하세요..."
+                autocomplete="off"
+            >
+            <button id="searchBtn" class="search-btn">전송</button>
+        </div>
     </div>
     
     <script src="/app.js"></script>

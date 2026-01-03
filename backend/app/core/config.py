@@ -9,10 +9,7 @@ class Config(BaseSettings):
     OPENAI_API_KEY: str
     TAVILY_API_KEY: str
 
-    LANGSMITH_TRACING: str
+    LANGCHAIN_TRACING_V2: str
     LANGSMITH_ENDPOINT: str
     LANGSMITH_API_KEY: str
     LANGSMITH_PROJECT: str
-
-
-settings = Config()
