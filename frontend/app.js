@@ -268,6 +268,16 @@ function handleStreamEvent(event) {
         if (scopingComplete) {
             return; // 더 이상 text_chunk를 처리하지 않음
         }
+        // writer 노드의 텍스트 스트리밍이 시작되면 research_status 컨테이너 숨기기
+        if (currentMessageId) {
+            const messageElement = document.getElementById(currentMessageId);
+            if (messageElement) {
+                const statusContainer = messageElement.querySelector('.research-status-container');
+                if (statusContainer) {
+                    statusContainer.style.display = 'none';
+                }
+            }
+        }
         // 글자 단위 스트리밍
         currentText += event.char;
         updateStreamingMessage(currentMessageId, currentText);
