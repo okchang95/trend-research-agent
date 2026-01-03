@@ -1,6 +1,10 @@
-// API 엔드포인트 (/api prefix 사용)
-const API_URL = window.location.origin + '/api/agent';
-const API_STREAM_URL = window.location.origin + '/api/agent/stream';
+// API 엔드포인트 설정
+// 로컬 개발: localhost:8000, 프로덕션: window.location.origin
+const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = isLocalDev ? 'http://localhost:8000' : window.location.origin;
+
+const API_URL = API_BASE_URL + '/api/agent';
+const API_STREAM_URL = API_BASE_URL + '/api/agent/stream';
 
 // DOM 요소
 const userInput = document.getElementById('userInput');

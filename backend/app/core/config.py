@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
 
 
 class Config(BaseSettings):
@@ -8,7 +7,12 @@ class Config(BaseSettings):
         env_file_encoding="utf-8",
     )
     OPENAI_API_KEY: str
-    TAVILY_API_KEY: Optional[str] = None
+    TAVILY_API_KEY: str
+
+    LANGSMITH_TRACING: str
+    LANGSMITH_ENDPOINT: str
+    LANGSMITH_API_KEY: str
+    LANGSMITH_PROJECT: str
 
 
 settings = Config()
