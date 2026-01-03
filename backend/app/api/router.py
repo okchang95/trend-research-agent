@@ -59,32 +59,3 @@ async def chat_stream(
 async def get_all_sessions(service: ChatService = Depends(get_chat_service)):
     sessions = await service.get_all_sessions()
     return sessions
-
-
-# from fastapi.responses import StreamingResponse
-
-# @router.post("/agent")
-# async def run_agent(
-#     request: AgentRequest,
-#     service: AgentService = Depends(get_agent_service),
-# ):
-#     """동기 실행 (기존 호환성 유지)"""
-#     response = await service.run_agent(request)
-#     return response
-
-
-# @router.post("/agent/stream")
-# async def stream_agent(
-#     request: AgentRequest,
-#     service: AgentService = Depends(get_agent_service),
-# ):
-#     """SSE를 통한 스트리밍 실행"""
-#     return StreamingResponse(
-#         service.stream_agent(request),
-#         media_type="text/event-stream",
-#         headers={
-#             "Cache-Control": "no-cache",
-#             "Connection": "keep-alive",
-#             "X-Accel-Buffering": "no",
-#         },
-#     )

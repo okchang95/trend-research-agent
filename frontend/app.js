@@ -178,140 +178,172 @@ function handleStreamEvent(event) {
     startThinkingTimer();
     
     if (event.type === 'session') {
-        // 세션 ID 저장
-        currentSessionId = event.session_id;
-        console.log('Session ID:', currentSessionId);
-    } else if (event.type === 'scoping_complete') {
-        // clarify_requirement 노드의 answer 스트리밍이 완료되었음을 표시
-        // 이 시점에서 스트리밍을 완료하고 researcher 노드 시작을 기다림
-        scopingComplete = true;
-        if (currentMessageId) {
-            const messageElement = document.getElementById(currentMessageId);
-            if (messageElement) {
-                const messageText = messageElement.querySelector('.message-text');
-                if (messageText) {
-                    // Mermaid 코드 블록을 먼저 처리 (마크다운 파싱 전)
-                    let processedText = currentText;
-                    const mermaidPlaceholders = [];
-                    
-                    if (typeof mermaid !== 'undefined') {
-                        const mermaidRegex = /```mermaid\s*\n([\s\S]*?)```/g;
-                        let match;
-                        let index = 0;
-                        while ((match = mermaidRegex.exec(currentText)) !== null) {
-                            const placeholder = `__MERMAID_PLACEHOLDER_${index}__`;
-                            mermaidPlaceholders.push({
-                                placeholder: placeholder,
-                                content: match[1].trim()
-                            });
-                            processedText = processedText.replace(match[0], placeholder);
-                            index++;
-                        }
-                    }
-                    
-                    // 마크다운을 HTML로 변환
-                    let html = safeMarkdownParse(processedText);
-                    
-                    // 플레이스홀더를 실제 Mermaid div로 교체
-                    if (typeof mermaid !== 'undefined' && mermaidPlaceholders.length > 0) {
-                        mermaidPlaceholders.forEach((item) => {
-                            const mermaidDiv = `<div class="mermaid">${item.content}</div>`;
-                            html = html.replace(item.placeholder, mermaidDiv);
-                        });
-                    }
-                    
-                    messageText.innerHTML = html;
-                    
-                    // Mermaid 렌더링 (있는 경우)
-                    if (typeof mermaid !== 'undefined') {
-                        try {
-                            mermaid.initialize({ startOnLoad: false, theme: 'default' });
-                            const mermaidDiagrams = messageText.querySelectorAll('.mermaid');
-                            mermaidDiagrams.forEach((diagram) => {
-                                if (!diagram.hasAttribute('data-processed')) {
-                                    mermaid.run({ nodes: [diagram] });
-                                }
-                            });
-                        } catch (e) {
-                            console.error('Mermaid rendering error:', e);
-                        }
-                    }
-                }
-            }
-        }
-        // scoping_complete 후에는 더 이상 text_chunk를 처리하지 않음
-        // researcher 노드가 시작되면 그때부터 새로운 스트리밍 시작
-    } else if (event.type === 'node_start') {
-        // 노드 시작 이벤트 - "진행 중" 상태 표시 (clarify_requirement 제외)
-        const nodeName = event.node;
-        // 일반 대화에서는 요구사항 명확화 진행 상태를 표시하지 않음
-        if (nodeName !== 'clarify_requirement') {
-            updateNodeStatus(nodeName, null, '진행 중');
-        }
-    } else if (event.type === 'node_complete') {
-        // 노드 완료 이벤트
-        const nodeName = event.node;
-        const nodeState = event.state;
-        
-        // 노드별 상태 업데이트 표시 (완료 상태, clarify_requirement 제외)
-        if (nodeName !== 'clarify_requirement') {
-            updateNodeStatus(nodeName, nodeState, '완료');
-        }
-    } else if (event.type === 'research_status') {
-        // 조사 상태 메시지 업데이트 (한 줄로 동적 업데이트)
-        // research 중일 때는 "생각중..." 타이머 중지
-        if (thinkingTimer) {
-            clearTimeout(thinkingTimer);
-            thinkingTimer = null;
-        }
-        hideThinkingIndicator();
-        updateResearchStatus(event.message, event.results);
-    } else if (event.type === 'research_findings') {
-        // 조사 내용을 토글 형태로 표시
-        // research 완료 후에도 "생각중..." 타이머 중지
-        if (thinkingTimer) {
-            clearTimeout(thinkingTimer);
-            thinkingTimer = null;
-        }
-        hideThinkingIndicator();
-        displayResearchFindings(event.findings);
-    } else if (event.type === 'text_chunk') {
-        // scoping_complete가 true이면 clarify_requirement의 answer 스트리밍을 중단
-        if (scopingComplete) {
-            return; // 더 이상 text_chunk를 처리하지 않음
-        }
-        // writer 노드의 텍스트 스트리밍이 시작되면 research_status 컨테이너 숨기기
-        if (currentMessageId) {
-            const messageElement = document.getElementById(currentMessageId);
-            if (messageElement) {
-                const statusContainer = messageElement.querySelector('.research-status-container');
-                if (statusContainer) {
-                    statusContainer.style.display = 'none';
-                }
-            }
-        }
-        // 글자 단위 스트리밍
-        currentText += event.char;
-        updateStreamingMessage(currentMessageId, currentText);
-        // 스트리밍 중 자동 스크롤은 MutationObserver가 처리
-    } else if (event.type === 'final') {
-        finalState = event.state;
-        // 최종 텍스트가 있으면 표시
-        if (event.state && event.state.answer) {
-            currentText = event.state.answer;
-            updateStreamingMessage(currentMessageId, currentText, true);
-            // 대화 히스토리에 추가
-            conversationHistory.push({
-                role: 'assistant',
-                message: currentText,
-                timestamp: new Date()
-            });
-        }
-        currentMessageId = null;
-    } else if (event.type === 'error') {
-        displayErrorMessage(event.error);
-        resetButtonState();
+        handleSessionEvent(event);
+        return;
     }
+    if (event.type === 'scoping_complete') {
+        handleScopingCompleteEvent();
+        return;
+    }
+    if (event.type === 'node_start') {
+        handleNodeStartEvent(event);
+        return;
+    }
+    if (event.type === 'node_complete') {
+        handleNodeCompleteEvent(event);
+        return;
+    }
+    if (event.type === 'research_status') {
+        handleResearchStatusEvent(event);
+        return;
+    }
+    if (event.type === 'research_findings') {
+        handleResearchFindingsEvent(event);
+        return;
+    }
+    if (event.type === 'text_chunk') {
+        handleTextChunkEvent(event);
+        return;
+    }
+    if (event.type === 'final') {
+        handleFinalEvent(event);
+        return;
+    }
+    if (event.type === 'error') {
+        handleErrorEvent(event);
+    }
+}
+
+function handleSessionEvent(event) {
+    currentSessionId = event.session_id;
+    console.log('Session ID:', currentSessionId);
+}
+
+function handleScopingCompleteEvent() {
+    scopingComplete = true;
+    if (!currentMessageId) {
+        return;
+    }
+    const messageElement = document.getElementById(currentMessageId);
+    if (!messageElement) {
+        return;
+    }
+    const messageText = messageElement.querySelector('.message-text');
+    if (!messageText) {
+        return;
+    }
+    let processedText = currentText;
+    const mermaidPlaceholders = [];
+    
+    if (typeof mermaid !== 'undefined') {
+        const mermaidRegex = /```mermaid\s*\n([\s\S]*?)```/g;
+        let match;
+        let index = 0;
+        while ((match = mermaidRegex.exec(currentText)) !== null) {
+            const placeholder = `__MERMAID_PLACEHOLDER_${index}__`;
+            mermaidPlaceholders.push({
+                placeholder: placeholder,
+                content: match[1].trim()
+            });
+            processedText = processedText.replace(match[0], placeholder);
+            index++;
+        }
+    }
+    
+    let html = safeMarkdownParse(processedText);
+    
+    if (typeof mermaid !== 'undefined' && mermaidPlaceholders.length > 0) {
+        mermaidPlaceholders.forEach((item) => {
+            const mermaidDiv = `<div class="mermaid">${item.content}</div>`;
+            html = html.replace(item.placeholder, mermaidDiv);
+        });
+    }
+    
+    messageText.innerHTML = html;
+    
+    if (typeof mermaid !== 'undefined') {
+        try {
+            mermaid.initialize({ startOnLoad: false, theme: 'default' });
+            const mermaidDiagrams = messageText.querySelectorAll('.mermaid');
+            mermaidDiagrams.forEach((diagram) => {
+                if (!diagram.hasAttribute('data-processed')) {
+                    mermaid.run({ nodes: [diagram] });
+                }
+            });
+        } catch (e) {
+            console.error('Mermaid rendering error:', e);
+        }
+    }
+}
+
+function handleNodeStartEvent(event) {
+    const nodeName = event.node;
+    if (nodeName !== 'clarify_requirement') {
+        updateNodeStatus(nodeName, null, '진행 중');
+    }
+}
+
+function handleNodeCompleteEvent(event) {
+    const nodeName = event.node;
+    const nodeState = event.state;
+    
+    if (nodeName !== 'clarify_requirement') {
+        updateNodeStatus(nodeName, nodeState, '완료');
+    }
+}
+
+function handleResearchStatusEvent(event) {
+    if (thinkingTimer) {
+        clearTimeout(thinkingTimer);
+        thinkingTimer = null;
+    }
+    hideThinkingIndicator();
+    updateResearchStatus(event.message, event.results);
+}
+
+function handleResearchFindingsEvent(event) {
+    if (thinkingTimer) {
+        clearTimeout(thinkingTimer);
+        thinkingTimer = null;
+    }
+    hideThinkingIndicator();
+    displayResearchFindings(event.findings);
+}
+
+function handleTextChunkEvent(event) {
+    if (scopingComplete) {
+        return;
+    }
+    if (currentMessageId) {
+        const messageElement = document.getElementById(currentMessageId);
+        if (messageElement) {
+            const statusContainer = messageElement.querySelector('.research-status-container');
+            if (statusContainer) {
+                statusContainer.style.display = 'none';
+            }
+        }
+    }
+    currentText += event.char;
+    updateStreamingMessage(currentMessageId, currentText);
+}
+
+function handleFinalEvent(event) {
+    finalState = event.state;
+    if (event.state && event.state.answer) {
+        currentText = event.state.answer;
+        updateStreamingMessage(currentMessageId, currentText, true);
+        conversationHistory.push({
+            role: 'assistant',
+            message: currentText,
+            timestamp: new Date()
+        });
+    }
+    currentMessageId = null;
+}
+
+function handleErrorEvent(event) {
+    displayErrorMessage(event.error);
+    resetButtonState();
 }
 
 function updateNodeStatus(nodeName, nodeState, status = '완료') {
@@ -864,4 +896,3 @@ function hideThinkingIndicator() {
         thinkingDiv.remove();
     }
 }
-
