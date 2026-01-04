@@ -41,11 +41,8 @@ htmlcov/
 .DS_Store
 *.pyc
 trash/
-images/
 docs/
 backend/legacy/
-*.png
-*.jpg
 
 # Docker
 .dockerignore
