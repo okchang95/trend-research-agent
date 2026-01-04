@@ -1,11 +1,13 @@
 # 연구/기술 트렌드 분석 AI 에이전트
 
-LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트 서비스입니다. 사용자의 요구사항을 이해하고, 최신 정보를 수집하여 전문적인 마크다운 형식의 종합 보고서를 생성합니다. 
+LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트 서비스입니다. 사용자의 요구사항을 이해하고, 최신 정보를 수집하여 전문적인 마크다운 형식의 종합 보고서를 생성합니다.
 
-- **서비스 링크**: https://chwlabs.dev
+🌐 **서비스 링크**: [https://chwlabs.dev](https://chwlabs.dev)
 
-> - Agent 구조는 Langchain [`open deep research`의 에이전트 아키텍처](https://github.com/langchain-ai/open_deep_research)를 참고하였습니다. 
-> - Frontend는 Vanilla JS + HTML로, 모두 **바이브코딩**을 통해 개발했습니다.
+> **참고사항**
+> - 서비스 웹 페이지는 PC 웹 브라우저에 최적화되어 있습니다.
+> - Agent 구조는 Langchain [`open deep research`의 에이전트 아키텍처](https://github.com/langchain-ai/open_deep_research)를 참고하였습니다.
+> - Frontend는 Vanilla JS + HTML로, 바이브코딩을 활용하여 개발했습니다. 
 > - README는 LLM을 활용해서 작성하였습니다. 
 
 ## 📋 목차
