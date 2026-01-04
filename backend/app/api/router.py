@@ -11,15 +11,6 @@ def get_chat_service() -> ChatService:
     return ChatService()
 
 
-@router.post("/chat")
-async def chat(
-    request: ChatRequest,
-    service: ChatService = Depends(get_chat_service),
-):
-    response = await service.conversation(request.session_id, request.user_message)
-    return ChatResponse(**response)
-
-
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
@@ -39,3 +30,12 @@ async def chat_stream(
 async def get_all_sessions(service: ChatService = Depends(get_chat_service)):
     sessions = await service.get_all_sessions()
     return sessions
+
+
+# @router.post("/chat")
+# async def chat(
+#     request: ChatRequest,
+#     service: ChatService = Depends(get_chat_service),
+# ):
+#     response = await service.conversation(request.session_id, request.user_message)
+#     return ChatResponse(**response)
