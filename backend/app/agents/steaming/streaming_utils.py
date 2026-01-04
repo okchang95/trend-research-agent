@@ -1,3 +1,14 @@
+"""
+스트리밍 유틸리티 모듈
+
+스트리밍 이벤트 처리에 필요한 헬퍼 함수들을 제공합니다.
+- 도구 호출 정보 추출 및 파싱
+- 도구 출력 결과 포맷팅
+- 연구 상태 메시지 생성
+- 이벤트에서 노드 이름 및 컨텐츠 추출
+- JSON 필터링
+"""
+
 import json
 import logging
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -36,7 +47,9 @@ def parse_tool_output(tool_output: object) -> List[Dict[str, str]]:
             try:
                 parsed_output = json.loads(tool_output)
                 search_results = (
-                    parsed_output if isinstance(parsed_output, list) else [parsed_output]
+                    parsed_output
+                    if isinstance(parsed_output, list)
+                    else [parsed_output]
                 )
             except json.JSONDecodeError:
                 search_results = []
@@ -160,6 +173,8 @@ def should_filter_json(streaming_buffer: str) -> Tuple[bool, bool]:
     is_json = any(keyword in streaming_buffer for keyword in json_keywords)
 
     buffer_stripped = streaming_buffer.strip()
-    starts_with_json = buffer_stripped.startswith("{") or buffer_stripped.startswith("[")
+    starts_with_json = buffer_stripped.startswith("{") or buffer_stripped.startswith(
+        "["
+    )
 
     return is_json or starts_with_json, starts_with_json

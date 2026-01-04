@@ -13,10 +13,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import END
 from langgraph.types import Command
 
-from app.core.config import Config
 from app.agents.state import AgentState
-from app.agents.llm import WRITER_LLM
 from app.agents.prompts import WRITING_SYSTEM_PROMPT, WRITING_USER_PROMPT
+from app.core.config import Config
+from app.core.llm import WRITER_LLM
 
 logger = logging.getLogger(__name__)
 config = Config()

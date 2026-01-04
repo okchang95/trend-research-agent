@@ -16,7 +16,6 @@ from typing_extensions import TypedDict, Annotated
 from langgraph.graph.message import add_messages
 
 from app.agents.state import AgentState
-from app.agents.llm import RESEARCHER_LLM
 from app.agents.prompts import RESEARCH_SYSTEM_PROMPT, RESEARCH_USER_PROMPT
 from app.agents.nodes.research_tools import (
     get_search_tool,
@@ -26,6 +25,7 @@ from app.agents.nodes.research_tools import (
     format_tool_result,
     create_finding_entry,
 )
+from app.core.llm import RESEARCHER_LLM
 
 logger = logging.getLogger(__name__)
 

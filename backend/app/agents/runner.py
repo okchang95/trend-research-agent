@@ -6,7 +6,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.graph import graph_builder
 from app.agents.state import AgentState
-from app.agents.event_handlers import StreamEventHandler
+from app.agents.steaming.event_handlers import StreamEventHandler
 
 logger = logging.getLogger(__name__)
 

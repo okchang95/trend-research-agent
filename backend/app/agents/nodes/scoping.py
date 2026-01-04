@@ -13,10 +13,10 @@ from langgraph.graph import END
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
-from app.core.config import Config
 from app.agents.state import AgentState
-from app.agents.llm import SCOPING_LLM
 from app.agents.prompts import SCOPING_SYSTEM_PROMPT, SCOPING_USER_PROMPT
+from app.core.config import Config
+from app.core.llm import SCOPING_LLM
 
 logger = logging.getLogger(__name__)
 config = Config()
