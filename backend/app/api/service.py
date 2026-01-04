@@ -116,6 +116,31 @@ class ChatService:
         )
         return result.content
 
+    async def _summarize_report(self, report: str):
+        from langchain_openai import ChatOpenAI
+        from langchain_core.prompts import PromptTemplate
+        from app.core.config import Config
+
+        config = Config()
+        llm = ChatOpenAI(
+            model="gpt-4o-mini", temperature=0, api_key=config.OPENAI_API_KEY
+        )
+        template = """
+        You are a helpful assistant that summarizes reports.
+        You are given a report and you need to summarize the report.
+        Summarize the report in 300 characters or less.
+
+        <Report>
+        {report}
+        </Report>
+
+        Return the summarized report only.
+        Summarized report:
+        """
+        chain = PromptTemplate(template=template.replace("  ", "").strip()) | llm
+        result = await chain.ainvoke({"report": report})
+        return result.content
+
     async def get_all_sessions(self):
         return SessionManager.get_all_sessions()
 
@@ -142,6 +167,7 @@ class ChatService:
         }
 
         final_answer = None
+        current_node = None
 
         try:
             # 에이전트 스트리밍 실행
@@ -150,15 +176,38 @@ class ChatService:
                 conversations=session.get("conversations", []),
                 conversations_summary=conversations_summary,
             ):
-                # final 이벤트에서 answer 추출
+                # final 이벤트에서 answer와 current_node 추출
                 if event.get("type") == "final":
-                    final_answer = event.get("state", {}).get("answer", "")
+                    state = event.get("state", {})
+                    final_answer = state.get("answer", "")
+                    current_node = state.get("current_node", "")
 
                 yield event
 
             # 최종 메시지 저장
             if final_answer:
-                SessionManager.add_message(session_id, "assistant", final_answer)
+                # writer 노드 완료 시 보고서 요약해서 저장
+                if current_node == "writer":
+                    try:
+                        logger.info(
+                            "Writer node completed. Summarizing report for session storage."
+                        )
+                        summarized_report = await self._summarize_report(final_answer)
+                        SessionManager.add_message(
+                            session_id, "assistant", summarized_report
+                        )
+                        logger.info(
+                            f"Report summarized and saved. Original length: {len(final_answer)}, Summarized length: {len(summarized_report)}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Error summarizing report: {e}")
+                        # 요약 실패 시 원본 저장
+                        SessionManager.add_message(
+                            session_id, "assistant", final_answer
+                        )
+                else:
+                    # writer 노드가 아니면 원본 그대로 저장
+                    SessionManager.add_message(session_id, "assistant", final_answer)
 
         except Exception as e:
             logger.error(f"Streaming error: {e}")

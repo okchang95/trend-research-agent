@@ -213,6 +213,8 @@ SSE 스트리밍 채팅 요청
 - `ChatService` 클래스
 - 비즈니스 로직 처리
 - 세션 관리 및 에이전트 실행
+- `stream_conversation()`: SSE 스트리밍 대화 처리
+- `_summarize_report()`: 보고서 요약 (writer 노드 완료 시 300자 이내로 요약)
 
 #### `schemas.py`
 - Pydantic 스키마 정의
@@ -222,6 +224,7 @@ SSE 스트리밍 채팅 요청
 - `SessionManager` 클래스
 - 세션별 대화 히스토리 관리
 - 20개 이상 메시지 시 자동 요약
+- 보고서 요약 저장: writer 노드 완료 시 긴 보고서를 요약하여 저장
 
 #### `sse.py`
 - SSE 응답 생성 유틸리티

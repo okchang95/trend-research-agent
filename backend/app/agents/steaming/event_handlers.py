@@ -385,6 +385,7 @@ class StreamEventHandler:
             "type": "final",
             "state": {
                 "answer": final_answer,
+                "current_node": self.state.final_state.get("current_node", ""),
                 "is_clarified": self.state.final_state.get("is_clarified", False),
                 "subject": self.state.final_state.get("subject", ""),
                 "scope": self.state.final_state.get("scope", ""),
