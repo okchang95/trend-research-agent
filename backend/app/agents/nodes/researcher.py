@@ -1,323 +1,313 @@
 """
 연구 에이전트 노드 (ReAct 패턴)
-- LLM이 도구를 선택하고 사용하는 ReAct 구조
-- 웹 검색 도구를 LLM에 바인딩하여 LLM이 직접 연구 수행
-- 여러 라운드의 연구를 통해 깊이 있는 정보 수집
+- LangGraph 표준 방식으로 ReAct 패턴 구현
+- 서브그래프를 사용하여 agent 노드와 tools 노드로 분리
+- 조건부 엣지로 ReAct 루프 제어
 """
 
 import logging
 from datetime import datetime
-from typing import Optional
-import httpx
+from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import tool
-from langchain_community.tools import ArxivQueryRun
-from langchain_community.utilities import ArxivAPIWrapper
+from langgraph.graph import StateGraph, END, START
 from langgraph.types import Command
+from typing_extensions import TypedDict, Annotated
+from langgraph.graph.message import add_messages
 
-from app.core.config import Config
 from app.agents.state import AgentState
 from app.agents.llm import RESEARCHER_LLM
-from app.agents.prompts import RESEARCH_SYSTEM_PROMPT
+from app.agents.prompts import RESEARCH_SYSTEM_PROMPT, RESEARCH_USER_PROMPT
+from app.agents.nodes.research_tools import (
+    get_search_tool,
+    get_arxiv_tool,
+    get_tools_map,
+    execute_tool,
+    format_tool_result,
+    create_finding_entry,
+)
 
 logger = logging.getLogger(__name__)
-config = Config()
 
 
-research_system_prompt = RESEARCH_SYSTEM_PROMPT
+# ReAct 서브그래프를 위한 상태 정의
+class ResearchState(TypedDict):
+    messages: Annotated[list, add_messages]
+    findings: list
+    iteration: int
+    max_iterations: int
 
 
-# Tavily API를 직접 호출하는 커스텀 도구
-@tool
-async def tavily_search(query: str, max_results: int = 5) -> str:
-    """
-    Tavily 검색 API를 사용하여 웹 검색을 수행합니다.
-
-    Args:
-        query: 검색 쿼리
-        max_results: 최대 결과 수 (기본값: 5)
-
-    Returns:
-        검색 결과를 JSON 문자열로 반환
-    """
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": config.TAVILY_API_KEY,
-                    "query": query,
-                    "max_results": max_results,
-                    "search_depth": "advanced",
-                },
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            # 결과를 포맷팅
-            results = []
-            for result in data.get("results", []):
-                results.append(
-                    {
-                        "title": result.get("title", ""),
-                        "url": result.get("url", ""),
-                        "content": result.get("content", ""),
-                    }
-                )
-
-            # JSON 문자열로 반환 (LangChain 도구 형식에 맞춤)
-            import json
-
-            return json.dumps(results, ensure_ascii=False)
-    except Exception as e:
-        logger.error(f"Tavily search error: {e}")
-        return f"검색 중 오류가 발생했습니다: {str(e)}"
-
-
-# 도구 결과를 사람이 읽기 쉬운 형식으로 변환
-def format_tool_result(tool_result, tool_type: str) -> str:
-    """
-    도구 실행 결과를 사람이 읽기 쉬운 형식으로 변환
-
-    Args:
-        tool_result: 도구 실행 결과 (리스트, 딕셔너리, 또는 문자열)
-        tool_type: 도구 타입 ("web_search" 또는 "arxiv")
-
-    Returns:
-        포맷팅된 문자열
-    """
-    import json
-
-    # 문자열인 경우 JSON 파싱 시도
-    if isinstance(tool_result, str):
-        try:
-            tool_result = json.loads(tool_result)
-        except json.JSONDecodeError:
-            # JSON이 아니면 그대로 반환
-            return tool_result
-
-    # 웹 검색 결과 포맷팅
-    if tool_type == "web_search":
-        if isinstance(tool_result, list):
-            formatted_lines = []
-            for i, item in enumerate(tool_result, 1):
-                if isinstance(item, dict):
-                    title = item.get("title", "제목 없음")
-                    url = item.get("url", "")
-                    content = item.get("content", "")
-                    # 내용이 너무 길면 앞부분만 표시
-                    content_preview = (
-                        content[:300] + "..." if len(content) > 300 else content
-                    )
-                    formatted_lines.append(
-                        f"[{i}] {title}\n" f"URL: {url}\n" f"내용: {content_preview}\n"
-                    )
-            return (
-                "\n".join(formatted_lines)
-                if formatted_lines
-                else "검색 결과가 없습니다."
-            )
-        elif isinstance(tool_result, dict):
-            title = tool_result.get("title", "제목 없음")
-            url = tool_result.get("url", "")
-            content = tool_result.get("content", "")
-            content_preview = content[:300] + "..." if len(content) > 300 else content
-            return f"제목: {title}\nURL: {url}\n내용: {content_preview}"
-
-    # Arxiv 결과 포맷팅
-    elif tool_type == "arxiv":
-        if isinstance(tool_result, str):
-            return tool_result
-        elif isinstance(tool_result, dict):
-            # Arxiv 결과는 보통 문자열로 반환되므로 그대로 사용
-            return str(tool_result)
-
-    # 기타 경우 문자열로 변환 (JSON 형식이 아닌 자연어 형식)
-    if isinstance(tool_result, list):
-        # 리스트를 자연어로 변환
-        formatted_items = []
-        for i, item in enumerate(tool_result, 1):
-            if isinstance(item, dict):
-                # 딕셔너리를 키-값 쌍으로 변환
-                item_str = ", ".join([f"{k}: {v}" for k, v in item.items() if v])
-                formatted_items.append(f"[{i}] {item_str}")
-            else:
-                formatted_items.append(f"[{i}] {str(item)}")
-        return "\n".join(formatted_items) if formatted_items else "결과가 없습니다."
-    elif isinstance(tool_result, dict):
-        # 딕셔너리를 키-값 쌍으로 변환
-        formatted_items = []
-        for k, v in tool_result.items():
-            if v:
-                formatted_items.append(f"{k}: {v}")
-        return "\n".join(formatted_items) if formatted_items else "결과가 없습니다."
-
-    return str(tool_result)
-
-
-# 웹 검색 도구 초기화
-def get_search_tool():
-    """Tavily 웹 검색 도구 반환"""
-    return tavily_search
-
-
-# Arxiv 학술 논문 검색 도구 초기화
-def get_arxiv_tool():
-    """Arxiv 학술 논문 검색 도구 반환"""
-    arxiv_wrapper = ArxivAPIWrapper(
-        top_k_results=3,  # 상위 3개 논문만
-        doc_content_chars_max=2000,  # 각 논문의 최대 문자 수
-    )
-    return ArxivQueryRun(api_wrapper=arxiv_wrapper)
-
-
-async def researcher(state: AgentState) -> AgentState:
-    """
-    연구 에이전트 메인 함수 (ReAct 패턴)
-    - LLM이 도구를 선택하고 사용
-    - 여러 라운드의 연구 수행
-    """
-    state["current_node"] = "researcher"
-    logger.info(f"Starting research for subject: {state.get('subject', '')}")
-
-    subject = state.get("subject", "")
-    scope = state.get("scope", "")
-    brief_requirement = state.get("brief_requirement", "")
-
-    if not brief_requirement:
-        logger.warning("No brief_requirement provided, skipping research")
-        state["findings"] = []
-        return state
-
-    # 검색 도구들 초기화
+def _build_research_graph(subject: str, brief_requirement: str, current_date: str):
+    """ReAct 패턴을 위한 서브그래프 빌드"""
+    # 도구 초기화
     search_tool = get_search_tool()
     arxiv_tool = get_arxiv_tool()
+    tools = [search_tool, arxiv_tool]
 
-    # 도구들을 LLM에 바인딩
-    llm_with_tools = RESEARCHER_LLM.bind_tools([search_tool, arxiv_tool])
+    # LLM에 도구 바인딩
+    llm_with_tools = RESEARCHER_LLM.bind_tools(tools)
 
-    # 현재 날짜 가져오기
-    current_date = datetime.now().strftime("%Y년 %m월 %d일")
+    MAX_ITERATIONS = 3
 
-    # 시스템 프롬프트 구성
+    # 프롬프트 구성
     system_message = SystemMessage(
-        content=research_system_prompt.format(
+        content=RESEARCH_SYSTEM_PROMPT.format(
             current_date=current_date,
             subject=subject,
             brief_requirement=brief_requirement,
-            max_iterations=3,  # 최대 3번 반복
+            max_iterations=MAX_ITERATIONS,
+        )
+    )
+    user_message = HumanMessage(
+        content=RESEARCH_USER_PROMPT.format(
+            current_date=current_date,
+            subject=subject,
+            brief_requirement=brief_requirement,
         )
     )
 
-    # 초기 사용자 메시지
-    user_message = HumanMessage(
-        content=f"다음 요구사항에 대해 연구를 시작하세요:\n\n주제: {subject}\n요구사항: {brief_requirement}\n\n**중요**: 현재 날짜({current_date})를 기준으로 최신 트렌드와 최근 정보를 우선적으로 수집하세요."
-    )
+    # Agent 노드: LLM 호출 및 도구 선택
+    async def agent_node(research_state: ResearchState) -> ResearchState:
+        """LLM이 도구를 선택하는 노드"""
+        messages = research_state["messages"]
+        iteration = research_state["iteration"]
+        max_iterations = research_state["max_iterations"]
 
-    # 메시지 히스토리 초기화
-    messages = [system_message, user_message]
+        # 최대 반복 횟수 확인
+        if iteration >= max_iterations:
+            logger.info(f"Reached max iterations ({max_iterations})")
+            return research_state
 
-    # ReAct 루프: 최대 3번 반복
-    max_iterations = 3
-    findings = []
-
-    for iteration in range(max_iterations):
         logger.info(f"Research iteration {iteration + 1}/{max_iterations}")
-
-        # LLM이 도구를 선택하고 응답 생성
         response = await llm_with_tools.ainvoke(messages)
-        messages.append(response)
+        return {
+            "messages": [response],
+            "findings": research_state["findings"],
+            "iteration": iteration,
+            "max_iterations": max_iterations,
+        }
 
-        # 도구 호출이 없으면 연구 완료
-        if not response.tool_calls:
-            logger.info("No more tool calls, research complete")
-            break
+    # Tools 노드: 도구 실행
+    async def tools_node(research_state: ResearchState) -> ResearchState:
+        """도구를 실행하는 노드"""
+        messages = research_state["messages"]
+        findings = research_state["findings"]
+        iteration = research_state["iteration"]
 
-        # 도구 실행
-        for tool_call in response.tool_calls:
+        # 마지막 메시지에서 도구 호출 추출
+        last_message = messages[-1]
+        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+            return research_state
+
+        # 도구 맵핑 가져오기
+        tools_map = get_tools_map()
+        tool_messages = []
+
+        for tool_call in last_message.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
             tool_id = tool_call["id"]
 
             logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
 
-            try:
-                # 도구별 실행
+            # 도구 실행 (research_tools 모듈로 위임)
+            tool_result, tool_type, error_message = await execute_tool(
+                tool_name, tool_args, tools_map
+            )
+
+            if error_message:
+                # 에러 발생 시
+                tool_messages.append(
+                    ToolMessage(
+                        content=f"Error: {error_message}",
+                        tool_call_id=tool_id,
+                    )
+                )
+            else:
+                # 성공 시 findings에 추가
                 query = tool_args.get("query", "")
+                finding = create_finding_entry(query, tool_result, tool_type, iteration)
+                findings.append(finding)
 
-                if (
-                    "tavily" in tool_name.lower()
-                    or "search" in tool_name.lower()
-                    or tool_name == "tavily_search"
-                ):
-                    # Tavily 웹 검색 도구 실행
-                    tool_result_str = await search_tool.ainvoke(query)
-                    # JSON 문자열을 파싱
-                    import json
-
-                    try:
-                        tool_result = json.loads(tool_result_str)
-                    except json.JSONDecodeError:
-                        tool_result = tool_result_str
-                    tool_type = "web_search"
-                elif tool_name == "arxiv":
-                    # Arxiv 학술 논문 검색 도구 실행
-                    tool_result = await arxiv_tool.ainvoke(query)
-                    tool_type = "arxiv"
-                else:
-                    logger.warning(f"Unknown tool: {tool_name}, trying as web search")
-                    # 알 수 없는 도구는 웹 검색으로 시도
-                    tool_result_str = await search_tool.ainvoke(query)
-                    import json
-
-                    try:
-                        tool_result = json.loads(tool_result_str)
-                    except json.JSONDecodeError:
-                        tool_result = tool_result_str
-                    tool_type = "web_search"
-
-                # 결과를 findings에 추가
-                findings.append(
-                    {
-                        "query": query,
-                        "results": tool_result,
-                        "tool_type": tool_type,
-                        "iteration": iteration + 1,
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                )
-
-                # 도구 결과를 사람이 읽기 쉬운 형식으로 변환
+                # 도구 결과 포맷팅 및 메시지 추가
                 formatted_result = format_tool_result(tool_result, tool_type)
-
-                # 도구 결과를 메시지에 추가
-                tool_message = ToolMessage(
-                    content=formatted_result,
-                    tool_call_id=tool_id,
+                tool_messages.append(
+                    ToolMessage(
+                        content=formatted_result,
+                        tool_call_id=tool_id,
+                    )
                 )
-                messages.append(tool_message)
 
-            except Exception as e:
-                logger.error(f"Error executing tool {tool_name}: {e}")
-                error_message = ToolMessage(
-                    content=f"Error: {str(e)}",
-                    tool_call_id=tool_id,
+        return {
+            "messages": tool_messages,
+            "findings": findings,
+            "iteration": iteration + 1,
+            "max_iterations": research_state["max_iterations"],
+        }
+
+    # conditional edge: 종료 조건 확인
+    def should_continue(research_state: ResearchState) -> Literal["continue", "end"]:
+        """도구 호출이 있는지 확인하여 계속할지 종료할지 결정"""
+        messages = research_state["messages"]
+        iteration = research_state["iteration"]
+        max_iterations = research_state["max_iterations"]
+
+        # 마지막 메시지 확인
+        if not messages:
+            return "end"
+
+        last_message = messages[-1]
+
+        # 도구 호출이 있는지 확인
+        has_tool_calls = hasattr(last_message, "tool_calls") and last_message.tool_calls
+
+        # 최대 반복 횟수 초과 체크
+        if iteration + 1 >= max_iterations:
+            # tool_calls가 있으면 tools 노드를 실행하고 종료
+            if has_tool_calls:
+                logger.info(
+                    f"Reached max iterations ({max_iterations}), but tool_calls exist. Executing tools before ending."
                 )
-                messages.append(error_message)
+                return "continue"
+            else:
+                logger.info(f"Reached max iterations ({max_iterations})")
+                return "end"
+
+        # 도구 호출이 있으면 계속, 없으면 종료
+        if has_tool_calls:
+            return "continue"
+        else:
+            logger.info("No more tool calls, research complete")
+            return "end"
+
+    # conditional edge: tools 노드에서 최대 반복 횟수 체크
+    def should_continue_after_tools(
+        research_state: ResearchState,
+    ) -> Literal["continue", "end"]:
+        """tools 노드 실행 후 계속할지 종료할지 결정"""
+        iteration = research_state["iteration"]
+        max_iterations = research_state["max_iterations"]
+
+        if iteration >= max_iterations:
+            logger.info(
+                f"Reached max iterations ({max_iterations}) after tools execution"
+            )
+            return "end"
+        return "continue"
+
+    # 리서치 서브 그래프 빌드
+    workflow = StateGraph(ResearchState)
+    workflow.add_node("agent", agent_node)
+    workflow.add_node("tools", tools_node)
+
+    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "continue": "tools",
+            "end": END,
+        },
+    )
+    workflow.add_conditional_edges(
+        "tools",
+        should_continue_after_tools,
+        {
+            "continue": "agent",
+            "end": END,
+        },
+    )
+
+    return workflow.compile(), {
+        "messages": [system_message, user_message],
+        "findings": [],
+        "iteration": 0,
+        "max_iterations": MAX_ITERATIONS,
+    }
+
+
+async def researcher(state: AgentState) -> Command:
+    """
+    연구 에이전트 메인 노드 함수 (LangGraph 표준 ReAct 패턴)
+    - 서브그래프를 사용하여 agent 노드와 tools 노드로 분리
+    - 조건부 엣지로 ReAct 루프 제어
+    """
+    state["current_node"] = "researcher"
+    logger.info(f"Starting research for subject: {state.get('subject', '')}")
+
+    subject = state.get("subject", "")
+    brief_requirement = state.get("brief_requirement", "")
+
+    # 요구사항이 없으면 연구 완료
+    if not brief_requirement:
+        logger.warning("No brief_requirement provided, skipping research")
+        state["findings"] = []
+        return Command(update=state, goto="writer")
+
+    # 현재 날짜
+    current_date = datetime.now().strftime("%Y년 %m월 %d일")
+
+    # ReAct 서브그래프 빌드 및 초기 상태 설정
+    research_graph, initial_state = _build_research_graph(
+        subject, brief_requirement, current_date
+    )
+
+    # 서브그래프 실행
+    final_state = await research_graph.ainvoke(initial_state)
+    findings = final_state["findings"]
 
     # 최종 분석 및 요약
     if findings:
         logger.info(f"Research completed with {len(findings)} findings")
 
         # LLM에게 최종 요약 요청
+        messages = final_state["messages"]
+
+        # tool_calls가 있는 assistant 메시지가 있는지 확인하고 필터링
+        # (tool message가 없는 tool_calls는 제거)
+        cleaned_messages = []
+        pending_tool_calls = set()
+
+        for msg in messages:
+            # assistant 메시지의 tool_calls 추적
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    pending_tool_calls.add(tool_call["id"])
+                cleaned_messages.append(msg)
+            # tool message는 pending_tool_calls에서 제거
+            elif hasattr(msg, "tool_call_id"):
+                if msg.tool_call_id in pending_tool_calls:
+                    pending_tool_calls.remove(msg.tool_call_id)
+                cleaned_messages.append(msg)
+            # 다른 메시지는 그대로 추가
+            else:
+                cleaned_messages.append(msg)
+
+        # pending_tool_calls가 남아있으면 (tool message가 없는 tool_calls) 해당 assistant 메시지 제거
+        if pending_tool_calls:
+            logger.warning(
+                f"Found {len(pending_tool_calls)} tool_calls without tool messages. Filtering them out."
+            )
+            final_cleaned = []
+            for msg in cleaned_messages:
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    # 이 assistant 메시지의 tool_calls 중 pending이 있는지 확인
+                    has_pending = any(
+                        tc["id"] in pending_tool_calls for tc in msg.tool_calls
+                    )
+                    if has_pending:
+                        # 이 메시지는 건너뛰기
+                        continue
+                final_cleaned.append(msg)
+            cleaned_messages = final_cleaned
+
         summary_prompt = HumanMessage(
             content="수집한 모든 정보를 종합하여 요약하고, 주요 발견사항을 정리하세요."
         )
-        messages.append(summary_prompt)
+        cleaned_messages.append(summary_prompt)
 
-        final_response = await RESEARCHER_LLM.ainvoke(messages)
+        final_response = await RESEARCHER_LLM.ainvoke(cleaned_messages)
 
         # findings에 최종 요약 추가
         findings.append(
@@ -330,5 +320,4 @@ async def researcher(state: AgentState) -> AgentState:
     state["findings"] = findings
     logger.info(f"Research completed. Total findings: {len(findings)}")
 
-    # Command를 사용하여 writer 노드로 진행
     return Command(update=state, goto="writer")

@@ -6,27 +6,20 @@
 """
 
 import logging
-import json
 from typing import List, Dict
 from datetime import datetime
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END
 from langgraph.types import Command
 
 from app.core.config import Config
 from app.agents.state import AgentState
 from app.agents.llm import WRITER_LLM
-from app.agents.prompts import (
-    REPORT_WRITING_SYSTEM_PROMPT,
-    REPORT_WRITING_USER_PROMPT_TEMPLATE,
-)
+from app.agents.prompts import WRITING_SYSTEM_PROMPT, WRITING_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 config = Config()
-
-
-report_writing_system_prompt = REPORT_WRITING_SYSTEM_PROMPT
 
 
 def format_findings_for_prompt(findings: List[Dict]) -> str:
@@ -104,7 +97,6 @@ async def writer(state: AgentState) -> AgentState:
 
     findings = state.get("findings", [])
     subject = state.get("subject", "")
-    scope = state.get("scope", "")
     brief_requirement = state.get("brief_requirement", "")
 
     if not findings:
@@ -120,19 +112,16 @@ async def writer(state: AgentState) -> AgentState:
     # 현재 날짜 가져오기
     current_date = datetime.now().strftime("%Y년 %m월 %d일")
 
-    # 사용자 프롬프트 템플릿 구성 (변수 사용)
-    user_prompt_template = REPORT_WRITING_USER_PROMPT_TEMPLATE
-
     # 프롬프트 체인 구성
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", report_writing_system_prompt.format(current_date=current_date)),
-            ("user", user_prompt_template),
+            ("system", WRITING_SYSTEM_PROMPT.format(current_date=current_date)),
+            ("user", WRITING_USER_PROMPT),
         ]
     )
-
     chain = prompt | WRITER_LLM
 
+    # 보고서 생성 시도
     try:
         logger.info("Generating report...")
         response = await chain.ainvoke(
@@ -153,11 +142,11 @@ async def writer(state: AgentState) -> AgentState:
         state["answer"] = report
         logger.info(f"Report generated successfully (length: {len(report)} characters)")
 
+    # 보고서 생성 오류 처리
     except Exception as e:
         logger.error(f"Error generating report: {e}")
         state["answer"] = (
             f"# 보고서 생성 오류\n\n보고서 생성 중 오류가 발생했습니다: {str(e)}"
         )
 
-    # Command를 사용하여 종료
-    return Command(update=state, goto="__end__")
+    return Command(update=state, goto=END)

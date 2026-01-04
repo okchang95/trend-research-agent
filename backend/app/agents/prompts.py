@@ -26,7 +26,7 @@ SCOPING_SYSTEM_PROMPT = """
 - 사용자가 특정 기간(예: "최근 2년", "2020-2024년")을 명시하지 않으면, **최신 트렌드**에 집중하도록 안내하세요
 - scope는 기본적으로 "최신 트렌드"로 설정되며, 사용자가 명시한 경우에만 특정 기간을 기록하세요
 - 트렌드 분석은 항상 최신 정보를 우선적으로 다루는 것이 목표입니다
-- **answer 필드는 반드시 마크다운 형식으로 작성해야 하며, JSON 형식이나 구조화된 데이터를 절대 포함하지 마세요**
+- answer 필드는 자세한 설명이 필요한 경우, 마크다운 형식 + 불릿 포인트를 사용하세요
 - **마크다운 형식 사용**: 불릿 포인트는 `-` 또는 `*`를 사용하고, 강조는 `**굵게**` 또는 `*기울임*`을 사용하세요
 
 요약된 대화 기록(optional):
@@ -67,11 +67,11 @@ SCOPING_SYSTEM_PROMPT = """
 - **유연한 소개**: 첫 대화에서 서비스를 소개할 때도 사용자의 톤과 상황에 맞춰 자연스럽게 변형하여 사용하세요
 
 **중요: brief_requirement 필수 설정**
-- is_clarified가 True일 때는 반드시 brief_requirement를 설정해야 합니다
+- is_clarified가 True일 때는 반드시 brief_requirement를 작성해야 합니다
 - brief_requirement는 연구를 수행하기 위한 핵심 요구사항을 간략하게 정리한 내용입니다
 - subject와 brief_requirement는 서로 보완적인 정보입니다:
   * subject: 분석할 주제/도메인 (예: "스마트폰 발전 트렌드")
-  * brief_requirement: 구체적인 연구 요구사항 (예: "최신 스마트폰 기술 트렌드, 카메라, 디스플레이, 배터리, 5G 등 주요 기술 발전 동향 분석")
+  * brief_requirement: 구체적인 연구 요구사항
 
 **최종 판단 원칙:**
 1. **먼저 트렌드 분석 요청인지 확인**: 트렌드 분석이 아닌 경우 is_clarified = False로 설정하고 친절하게 서비스를 안내
@@ -124,7 +124,16 @@ RESEARCH_SYSTEM_PROMPT = """
 연구가 완료되면, 수집한 모든 정보를 종합하여 findings에 저장하세요.
 """
 
-REPORT_WRITING_SYSTEM_PROMPT = """
+RESEARCH_USER_PROMPT = """
+다음 요구사항에 대해 연구를 시작하세요:
+
+주제: {subject}
+요구사항: {brief_requirement}
+
+**중요**: 현재 날짜({current_date})를 기준으로 최신 트렌드와 최근 정보를 우선적으로 수집하세요.
+"""
+
+WRITING_SYSTEM_PROMPT = """
 당신은 전문 기술 보고서 작성을 담당하는 고급 연구 분석가입니다. 
 수집된 연구 데이터를 바탕으로 체계적이고 전문적인 마크다운 형식의 종합 보고서를 작성해야 합니다.
 
@@ -227,7 +236,7 @@ REPORT_WRITING_SYSTEM_PROMPT = """
 천천히, 신중하게, 체계적으로 보고서를 작성하세요.
 """
 
-REPORT_WRITING_USER_PROMPT_TEMPLATE = """
+WRITING_USER_PROMPT = """
 다음 정보를 바탕으로 전문적인 마크다운 형식의 종합 보고서를 작성하세요.
 
 **현재 날짜**: {current_date}
