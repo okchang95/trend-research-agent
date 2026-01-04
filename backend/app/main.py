@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # 환경변수 로딩 및 LangSmith tracking 설정
     config = Config()
-
-    # LangChain이 자동으로 tracking을 시작하도록 환경변수 설정
-    # LangChain은 os.environ에서 직접 읽으므로 여기서 설정해야 함
     if config.LANGCHAIN_TRACING_V2:
         os.environ["LANGCHAIN_TRACING_V2"] = config.LANGCHAIN_TRACING_V2
     if config.LANGSMITH_API_KEY:
@@ -45,7 +42,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API 라우터 (/api prefix)
 app.include_router(router, prefix="/api")
 
 
