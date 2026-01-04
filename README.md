@@ -76,7 +76,7 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 - **FastAPI**: 고성능 비동기 웹 프레임워크
 - **LangGraph**: 에이전트 워크플로우 관리 및 상태 관리
 - **LangChain**: LLM 통합 및 도구 사용
-- **OpenAI**: GPT 모델 (gpt-4o, gpt-4o-mini)
+- **OpenAI**: GPT 모델 (gpt-4.1-mini)
 - **Tavily**: 웹 검색 API
 - **ArXiv**: 학술 논문 검색
 - **Pydantic**: 데이터 검증
