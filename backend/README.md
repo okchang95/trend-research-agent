@@ -7,11 +7,12 @@ FastAPI 기반 백엔드 서버로, LangGraph를 사용한 에이전트 워크�
 - **FastAPI**: 고성능 비동기 웹 프레임워크
 - **LangGraph**: 에이전트 워크플로우 관리 및 상태 관리
 - **LangChain**: LLM 통합 및 도구 사용
-- **OpenAI**: GPT 모델 (gpt-4o, gpt-4o-mini)
+- **OpenAI**: GPT 모델
 - **Tavily**: 웹 검색 API
 - **ArXiv**: 학술 논문 검색
 - **Uvicorn**: ASGI 서버
-- **Pydantic**: 데이터 검증
+- **Pydantic**: 데이터 검증 및 스키마 정의
+- **Python 3.11+**: 최신 Python 기능 활용
 
 ## 📁 프로젝트 구조
 
@@ -19,15 +20,19 @@ FastAPI 기반 백엔드 서버로, LangGraph를 사용한 에이전트 워크�
 backend/
 ├── app/
 │   ├── agents/              # 에이전트 관련 모듈
-│   │   ├── event_handlers.py # 스트리밍 이벤트 핸들러
 │   │   ├── graph.py         # LangGraph 그래프 정의
 │   │   ├── runner.py        # 에이전트 실행기
 │   │   ├── state.py         # 에이전트 상태 정의
-│   │   ├── streaming.py     # 스트리밍 유틸리티
+│   │   ├── prompts.py       # 프롬프트 정의
+│   │   ├── utils.py         # 유틸리티 함수
+│   │   ├── steaming/        # 스트리밍 관련 모듈
+│   │   │   ├── event_handlers.py # 스트리밍 이벤트 핸들러
+│   │   │   └── streaming_utils.py # 스트리밍 유틸리티
 │   │   └── nodes/           # 에이전트 노드
-│   │       ├── scoping.py   # 요구사항 명확화 노드
-│   │       ├── researcher.py # 자료 수집 노드
-│   │       └── writer.py    # 보고서 작성 노드
+│   │       ├── scoping.py        # 요구사항 명확화 노드
+│   │       ├── researcher.py     # 정보 수집 노드 (ReAct 패턴)
+│   │       ├── writer.py         # 보고서 작성 노드
+│   │       └── research_tools.py  # 도구 정의 및 실행 로직
 │   ├── api/                 # API 레이어
 │   │   ├── router.py        # FastAPI 라우터
 │   │   ├── service.py       # 비즈니스 로직
@@ -36,6 +41,7 @@ backend/
 │   │   └── sse.py           # SSE 유틸리티
 │   ├── core/                # 핵심 설정
 │   │   ├── config.py        # 환경 변수 설정
+│   │   ├── llm.py          # LLM 초기화
 │   │   └── logging.py      # 로깅 설정
 │   └── main.py              # FastAPI 애플리케이션 진입점
 ├── requirements.txt         # Python 의존성
@@ -62,6 +68,7 @@ LANGSMITH_PROJECT=
 ### 의존성 설치
 
 ```bash
+cd backend
 pip install -r requirements.txt
 ```
 
@@ -76,30 +83,17 @@ uvicorn app.main:app --reload --port 8000
 ### Docker로 실행
 
 ```bash
+docker build -t research-agent-backend .
+docker run -p 8000:8000 --env-file .env research-agent-backend
+```
+
+또는 docker-compose 사용:
+
+```bash
 docker-compose up backend
 ```
 
 ## 📡 API 엔드포인트
-
-### POST `/api/chat`
-
-일반 채팅 요청 (비스트리밍)
-
-**Request:**
-```json
-{
-  "session_id": "optional-session-id",
-  "user_message": "최근 AI 트렌드 분석해줘"
-}
-```
-
-**Response:**
-```json
-{
-  "assistant_message": "분석 결과...",
-  "session_id": "session-id"
-}
-```
 
 ### POST `/api/chat/stream`
 
@@ -152,40 +146,100 @@ SSE 스트리밍 채팅 요청
 }
 ```
 
-## 🏗 아키텍처
+## 🏗 모듈 상세 설명
 
-### 에이전트 워크플로우
+### Agents 모듈
 
-LangGraph를 사용하여 다음 3단계 워크플로우를 구현:
+#### `graph.py`
+- LangGraph 그래프 정의
+- 노드 추가 및 엣지 연결
+- `graph_builder()` 함수로 그래프 생성
 
-1. **clarify_requirement** (`scoping.py`)
-   - 사용자 요구사항 분석 및 명확화
-   - 구조화된 출력으로 주제, 범위, 요구사항 추출
+#### `runner.py`
+- `AgentRunner` 클래스: 에이전트 실행 및 스트리밍 관리
+- `stream()` 메서드: SSE 스트리밍 실행
+- LangGraph의 `astream_events` 활용
 
-2. **researcher** (`researcher.py`)
-   - 웹 검색 (Tavily) 및 논문 검색 (ArXiv)
-   - 반복적 검색 전략으로 정보 수집
-   - 수집된 정보를 findings로 정리
+#### `state.py`
+- `AgentState` TypedDict 정의
+- 에이전트 전역 상태 관리
 
-3. **writer** (`writer.py`)
-   - 수집된 findings를 바탕으로 마크다운 보고서 생성
-   - 구조화된 형식으로 최종 답변 생성
+#### `prompts.py`
+- 각 노드별 시스템/사용자 프롬프트 정의
+- `SCOPING_SYSTEM_PROMPT`, `RESEARCH_SYSTEM_PROMPT`, `WRITING_SYSTEM_PROMPT` 등
 
-### 스트리밍 구조
+#### `nodes/scoping.py`
+- 요구사항 명확화 노드
+- Pydantic 모델로 구조화된 출력
+- `is_clarified` 플래그로 다음 노드 결정
 
-**이벤트 핸들러** (`event_handlers.py`):
-- `StreamEventHandler` 클래스가 각 이벤트 타입별 처리
+#### `nodes/researcher.py`
+- ReAct 패턴 구현
+- 서브그래프로 `agent_node`와 `tools_node` 분리
+- 최대 3회 반복을 통한 정보 수집
+- `_build_research_graph()` 함수로 서브그래프 생성
+
+#### `nodes/writer.py`
+- 보고서 작성 노드
+- findings를 바탕으로 마크다운 보고서 생성
+- 테이블, 다이어그램, 출처 포함
+
+#### `nodes/research_tools.py`
+- 도구 정의 및 실행 로직
+- `tavily_search`: Tavily 웹 검색 도구
+- `get_arxiv_tool()`: ArXiv 논문 검색 도구
+- `execute_tool()`: 도구 실행 및 결과 반환
+- `format_tool_result()`: 도구 결과 포맷팅
+- `get_tools_map()`: 도구 맵핑 제공
+
+#### `steaming/event_handlers.py`
+- `StreamEventHandler` 클래스
+- LangGraph 이벤트를 클라이언트 이벤트로 변환
 - `StreamState`로 스트리밍 상태 관리
-- LangGraph의 `astream_events`를 사용하여 실시간 이벤트 감지
 
-**SSE 유틸리티** (`sse.py`):
-- SSE 형식으로 이벤트 변환
-- 에러 처리 포함
+#### `steaming/streaming_utils.py`
+- 스트리밍 관련 유틸리티 함수
+- 도구 호출 정보 추출
+- 도구 출력 파싱
+- 연구 상태 메시지 생성
 
-### 세션 관리
+### API 모듈
 
-- `SessionManager`로 대화 세션 관리
-- 대화가 20개 이상이면 자동 요약하여 컨텍스트 유지
+#### `router.py`
+- FastAPI 라우터 정의
+- `/api/chat/stream`, `/api/sessions`, `/health` 엔드포인트
+
+#### `service.py`
+- `ChatService` 클래스
+- 비즈니스 로직 처리
+- 세션 관리 및 에이전트 실행
+
+#### `schemas.py`
+- Pydantic 스키마 정의
+- `ChatRequest`, `ChatResponse` 등
+
+#### `session.py`
+- `SessionManager` 클래스
+- 세션별 대화 히스토리 관리
+- 20개 이상 메시지 시 자동 요약
+
+#### `sse.py`
+- SSE 응답 생성 유틸리티
+- `create_sse_response()` 함수
+
+### Core 모듈
+
+#### `config.py`
+- 환경 변수 로드
+- `Config` 클래스로 설정 관리
+
+#### `llm.py`
+- LLM 초기화
+- `SCOPING_LLM`, `RESEARCHER_LLM`, `WRITER_LLM` 정의
+
+#### `logging.py`
+- 로깅 설정
+- JSON 형식 로그 파일 생성
 
 ## 🔧 개발 가이드
 
@@ -193,19 +247,73 @@ LangGraph를 사용하여 다음 3단계 워크플로우를 구현:
 
 1. `app/agents/nodes/`에 새 노드 파일 생성
 2. `AgentState`를 입력/출력으로 하는 함수 작성
-3. `app/agents/graph.py`에 노드 추가 및 엣지 연결
+3. `app/agents/graph.py`의 `graph_builder()`에 노드 추가:
+   ```python
+   builder.add_node("new_node", new_node_function)
+   ```
+4. 엣지 연결:
+   ```python
+   builder.add_edge("previous_node", "new_node")
+   ```
+
+### 새로운 도구 추가
+
+1. `app/agents/nodes/research_tools.py`에 도구 정의:
+   ```python
+   @tool
+   async def new_tool(query: str) -> str:
+       """도구 설명"""
+       # 도구 로직
+       return result
+   ```
+
+2. `get_tools_map()`에 도구 추가:
+   ```python
+   return {
+       "tavily_search": get_search_tool(),
+       "arxiv": get_arxiv_tool(),
+       "new_tool": get_new_tool(),  # 추가
+   }
+   ```
+
+3. `execute_tool()`에 실행 로직 추가:
+   ```python
+   elif tool_name == "new_tool":
+       tool = tools_map.get("new_tool")
+       # 실행 로직
+   ```
+
+4. `researcher.py`의 `_build_research_graph()`에서 도구 바인딩:
+   ```python
+   new_tool = get_new_tool()
+   tools = [search_tool, arxiv_tool, new_tool]
+   ```
 
 ### 이벤트 핸들러 수정
 
-`app/agents/event_handlers.py`의 `StreamEventHandler` 클래스에서:
-- 새로운 이벤트 타입 처리 메서드 추가
-- 기존 핸들러 수정
+`app/agents/steaming/event_handlers.py`의 `StreamEventHandler` 클래스에서:
 
-### 스트리밍 이벤트 추가
+1. 새로운 이벤트 타입 처리 메서드 추가:
+   ```python
+   async def handle_new_event(self, event: Dict) -> AsyncIterator[Dict]:
+       # 이벤트 처리 로직
+       yield {"type": "new_event", "data": ...}
+   ```
 
-1. `event_handlers.py`에서 새 이벤트 타입 처리
-2. `runner.py`의 `stream()` 메서드에서 이벤트 생성
-3. Frontend에서 해당 이벤트 타입 처리 추가
+2. `runner.py`의 `stream()` 메서드에서 이벤트 생성:
+   ```python
+   if event_type == "new_event":
+       async for e in handler.handle_new_event(event):
+           yield e
+   ```
+
+### 프롬프트 수정
+
+`app/agents/prompts.py`에서 각 노드별 프롬프트 수정:
+
+- `SCOPING_SYSTEM_PROMPT`: 요구사항 명확화 프롬프트
+- `RESEARCH_SYSTEM_PROMPT`: 연구 프롬프트
+- `WRITING_SYSTEM_PROMPT`: 보고서 작성 프롬프트
 
 ## 📝 로깅
 
@@ -213,7 +321,13 @@ LangGraph를 사용하여 다음 3단계 워크플로우를 구현:
 
 로그 파일:
 - `logs/root.json`: JSON 형식 로그
-- 일별 로그 파일 자동 생성
+- 일별 로그 파일 자동 생성 (예: `root.json.2026-01-01`)
+
+로그 레벨:
+- `INFO`: 일반 정보
+- `WARNING`: 경고
+- `ERROR`: 에러
+- `DEBUG`: 디버그 (개발 환경)
 
 ## 🧪 테스트
 
@@ -222,27 +336,7 @@ LangGraph를 사용하여 다음 3단계 워크플로우를 구현:
 pytest
 ```
 
-## 🐳 Docker
-
-### 이미지 빌드
-
-```bash
-docker build -t research-agent-backend .
-```
-
-### 컨테이너 실행
-
-```bash
-docker run -p 8000:8000 --env-file .env research-agent-backend
-```
-
-## 📚 참고 자료
-
-- [FastAPI 문서](https://fastapi.tiangolo.com/)
-- [LangGraph 문서](https://langchain-ai.github.io/langgraph/)
-- [LangChain 문서](https://python.langchain.com/)
-
-## 🔍 문제 해결
+## 🐛 문제 해결
 
 ### 포트 충돌
 
@@ -261,4 +355,34 @@ Python 버전 확인 (3.11 이상 권장):
 ```bash
 python --version
 ```
+
+가상 환경 사용 권장:
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 또는
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+```
+
+### LLM API 에러
+
+- OpenAI API 키가 올바른지 확인
+- API 사용량 및 한도 확인
+- 네트워크 연결 확인
+
+### 스트리밍 이벤트가 전송되지 않음
+
+- LangGraph의 `astream_events`가 올바르게 호출되는지 확인
+- `runner.py`의 `stream()` 메서드 확인
+- 브라우저 개발자 도구에서 SSE 연결 확인
+
+## 📚 참고 자료
+
+- [FastAPI 문서](https://fastapi.tiangolo.com/)
+- [LangGraph 문서](https://langchain-ai.github.io/langgraph/)
+- [LangChain 문서](https://python.langchain.com/)
+- [Pydantic 문서](https://docs.pydantic.dev/)
+- [Tavily API 문서](https://docs.tavily.com/)
+- [ArXiv API 문서](https://arxiv.org/help/api)
 
