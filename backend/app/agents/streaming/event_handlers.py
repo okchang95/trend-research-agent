@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from langgraph.types import Command
 
-from app.agents.steaming.streaming_utils import (
+from app.agents.streaming.streaming_utils import (
     build_research_status_end,
     build_research_status_start,
     extract_event_node_name,
