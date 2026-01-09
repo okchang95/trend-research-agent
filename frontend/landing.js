@@ -12,6 +12,10 @@ const API_BASE_URL = isLocalDev
     : window.location.origin; // 프로덕션: 같은 origin 사용 (nginx 프록시)
 const API_USERS_URL = API_BASE_URL + '/api/users';
 
+// 디버깅: API URL 확인
+console.log('API_BASE_URL:', API_BASE_URL);
+console.log('API_USERS_URL:', API_USERS_URL);
+
 // DOM 요소
 const landingPage = document.getElementById('landingPage');
 const loginModal = document.getElementById('loginModal');
