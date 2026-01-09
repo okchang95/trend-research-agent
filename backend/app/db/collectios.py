@@ -8,3 +8,4 @@ from enum import Enum
 
 class MongoCollections(str, Enum):
     USERS = "users"
+    THREADS = "threads"
