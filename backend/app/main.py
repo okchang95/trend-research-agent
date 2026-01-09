@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat.router import router as chat_router
 from app.api.users.router import router as users_router
+from app.api.threads.router import router as threads_router
 
 from app.core.logging import setup_logging
 from app.core.lifespan import lifespan
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     PREFIX = "/api"
     app.include_router(chat_router, prefix=PREFIX, tags=["chat"])
     app.include_router(users_router, prefix=PREFIX, tags=["users"])
+    app.include_router(threads_router, prefix=PREFIX, tags=["threads"])
 
     # 상태 체크 엔드포인트
     @app.get("/health")
