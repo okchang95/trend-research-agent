@@ -13,7 +13,9 @@ def get_thread_repo(db: Database = Depends(get_mongo_db)) -> ThreadRepository:
     return ThreadRepository(db)
 
 
-def get_thread_service(repo: ThreadService = Depends(get_thread_repo)) -> ThreadService:
+def get_thread_service(
+    repo: ThreadRepository = Depends(get_thread_repo),
+) -> ThreadService:
     """
     service에 repository 주입
     """
