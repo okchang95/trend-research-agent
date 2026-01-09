@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -11,6 +9,8 @@ services:
       - ./backend/.env
     volumes:
       - ./backend/logs:/app/logs
+    depends_on:
+      - mongo
     networks:
       - app-network
     healthcheck:
@@ -19,6 +19,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  mongo:
+    image: mongo:8.2
+    container_name: research-agent-mongo
+    restart: unless-stopped
+    env_file:
+      - ./mongo/.env
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"   # Compass 접속용
+    networks:
+      - app-network
 
   nginx:
     build:
@@ -35,7 +48,10 @@ services:
       - app-network
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL 인증서 마운트
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+volumes:
+  mongo_data:
 
 networks:
   app-network:
