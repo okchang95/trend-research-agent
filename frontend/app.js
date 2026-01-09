@@ -33,6 +33,9 @@ let currentEventSource = null;
 
 // 페이지 로드 시 초기화
 window.addEventListener('DOMContentLoaded', () => {
+    // 햄버거 메뉴 토글 (모바일용)
+    initMobileMenu();
+    
     // 로그아웃 버튼 이벤트 리스너
     if (logoutBtn) {
         logoutBtn.addEventListener('click', handleLogout);
@@ -438,4 +441,84 @@ function handleStreamEvent(event) {
         default:
             console.warn('Unknown event type:', event.type);
     }
+}
+
+/**
+ * 모바일 메뉴 초기화
+ */
+function initMobileMenu() {
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (!menuToggle || !sidebar || !sidebarOverlay) {
+        return;
+    }
+    
+    // 햄버거 버튼 클릭
+    menuToggle.addEventListener('click', () => {
+        const isOpen = sidebar.classList.contains('open');
+        
+        if (isOpen) {
+            closeMobileMenu();
+        } else {
+            openMobileMenu();
+        }
+    });
+    
+    // 오버레이 클릭 시 메뉴 닫기
+    sidebarOverlay.addEventListener('click', () => {
+        closeMobileMenu();
+    });
+    
+    // Thread 클릭 시 모바일에서 메뉴 닫기 (동적으로 추가된 요소를 위해 이벤트 위임 사용)
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.thread-item') && window.innerWidth <= 768) {
+            closeMobileMenu();
+        }
+    });
+    
+    // 새 대화 버튼 클릭 시 모바일에서 메뉴 닫기
+    if (newThreadBtn) {
+        newThreadBtn.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                closeMobileMenu();
+            }
+        });
+    }
+    
+    // 윈도우 리사이즈 시 모바일 메뉴 자동 닫기
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            closeMobileMenu();
+        }
+    });
+}
+
+/**
+ * 모바일 메뉴 열기
+ */
+function openMobileMenu() {
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (menuToggle) menuToggle.classList.add('active');
+    if (sidebar) sidebar.classList.add('open');
+    if (sidebarOverlay) sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden'; // 스크롤 방지
+}
+
+/**
+ * 모바일 메뉴 닫기
+ */
+function closeMobileMenu() {
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (menuToggle) menuToggle.classList.remove('active');
+    if (sidebar) sidebar.classList.remove('open');
+    if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = ''; // 스크롤 복원
 }

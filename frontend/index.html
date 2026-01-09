@@ -9,8 +9,18 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
 </head>
 <body>
+    <!-- 햄버거 메뉴 버튼 (모바일용) -->
+    <button id="menuToggle" class="menu-toggle" aria-label="메뉴 열기">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+    
+    <!-- 사이드바 오버레이 (모바일용) -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    
     <!-- 왼쪽 사이드바 -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h1>Trend Agent demo</h1>
             <div class="sidebar-user-info">
