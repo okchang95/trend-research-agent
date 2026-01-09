@@ -24,7 +24,24 @@ async def lifespan(app: FastAPI):
     logger.info(f"LangSmith project: {config.LANGSMITH_PROJECT}")
 
     # MongoDB 연결, fastapi app state에 저장
-    mongo_client = AsyncMongoClient(config.MONGODB_URI)
+    mongo_client = AsyncMongoClient(
+        config.MONGODB_URI,
+        # maxPoolSize=config.MAX_CONNECTIONS_COUNT,
+        # minPoolSize=config.MIN_CONNECTIONS_COUNT,
+        # serverSelectionTimeoutMS=config.SERVER_SELECTION_TIMEOUT_MS
+    )
+
+    # db 연결 확인
+    try:
+        ping_response = await mongo_client.admin.command("ping")
+        if int(ping_response["ok"]) != 1:
+            raise Exception("Problem connecting to database cluster.")
+        logger.info(f"MongoDB connected successfully")
+    except Exception as e:
+        logger.error(f"Error connecting to MongoDB: {e}")
+        raise RuntimeError(f"Error connecting to MongoDB: {e}")
+
+    # fastapi app state에 저장
     app.state.mongo_client = mongo_client
     app.state.mongo_db = mongo_client[config.MONGODB_DB]
 
@@ -34,5 +51,5 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         # 종료 시 자원 정리
-        mongo_client.close()
+        await mongo_client.close()
         logger.info("MongoDB client closed")
