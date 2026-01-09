@@ -1,6 +1,3 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from fastapi import HTTPException
 
 from app.api.users.models import User
@@ -16,9 +13,6 @@ class UserService:
         name = payload.name
         password = payload.password
 
-        KST = ZoneInfo("Asia/Seoul")
-        now_kst = datetime.now(tz=KST)
-
         # 이미 존재하는 유저인지 확인
         existing_user = await self._repo.get_by_name(name)
         if existing_user:
@@ -28,16 +22,12 @@ class UserService:
         user_data = User(
             name=name,
             password=password,
-            created_at=now_kst,
-            updated_at=now_kst,
         ).model_dump()
 
         new_user_id = await self._repo.create(user_data)
         return {
             "id": str(new_user_id),
             "name": name,
-            "created_at": now_kst,
-            "updated_at": now_kst,
         }
 
     async def get_user_by_name(self, name: str):

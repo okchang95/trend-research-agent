@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel, Field
 
 
 class User(BaseModel):
@@ -11,5 +13,9 @@ class User(BaseModel):
 
     name: str
     password: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=ZoneInfo("Asia/Seoul"))
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=ZoneInfo("Asia/Seoul"))
+    )
