@@ -54,6 +54,8 @@ class OutputFormat(BaseModel):
 
 
 async def clarify_requirement(state: AgentState):
+    state["current_node"] = "scoping"
+
     # 체인 설정
     prompt = ChatPromptTemplate(
         messages=[
