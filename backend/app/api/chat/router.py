@@ -1,26 +1,86 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.chat.service import ChatService
-from app.api.chat.schemas import ChatRequest
+from app.api.chat.deps import (
+    get_chat_service,
+    get_chat_thread_service,
+    get_chat_message_service,
+)
+from app.api.chat.schemas import (
+    ChatRequest,
+    ChatThreadCreate,
+    ChatThreadResponse,
+)
+from app.api.chat.service import (
+    ChatService,
+    ChatThreadService,
+    ChatMessageService,
+)
 from app.api.chat.sse import create_sse_response
+from app.core.response import CommonResponse, ErrorResponse
 
 router = APIRouter()
 
 
-def get_chat_service() -> ChatService:
-    return ChatService()
-
-
+############################################################
+#
+# Chat Agent Controllers
+#
+############################################################
 @router.post("/chat/stream")
 async def chat_stream(
-    request: ChatRequest,
+    payload: ChatRequest,
     service: ChatService = Depends(get_chat_service),
 ):
     """
     SSE를 통한 스트리밍 채팅
     각 노드의 실행 결과와 최종 텍스트를 실시간으로 전송
     """
-    event_generator = service.stream_conversation(
-        request.session_id, request.user_message
-    )
+    event_generator = service.stream_conversation(payload)
     return create_sse_response(event_generator)
+
+
+############################################################
+#
+# Threads Controllers
+# 1. GET threads list
+# TODO: 2. Update thread title
+# TODO: 3. Delete thread
+#
+############################################################
+@router.get("/threads")
+async def get_threads(
+    service: ChatThreadService = Depends(get_chat_thread_service),
+):
+    try:
+        result = await service.get_threads()
+        return CommonResponse.success_response(
+            message="Threads retrieved successfully",
+            data=result,
+        )
+    except HTTPException as e:
+        return CommonResponse.fail_response(message=e.detail)
+    except Exception as e:
+        return ErrorResponse.fail_response(message=str(e))
+
+
+############################################################
+#
+# Messages Controllers
+# 1. GET messages in thread by thread_id
+#
+############################################################
+@router.get("/threads/{thread_id}/messages")
+async def get_messages_by_thread_id(
+    thread_id: str,
+    service: ChatMessageService = Depends(get_chat_message_service),
+):
+    try:
+        result = await service.get_messages_by_thread_id(thread_id)
+        return CommonResponse.success_response(
+            message="Messages retrieved successfully",
+            data=result,
+        )
+    except HTTPException as e:
+        return CommonResponse.fail_response(message=e.detail)
+    except Exception as e:
+        return ErrorResponse.fail_response(message=str(e))
