@@ -33,6 +33,10 @@ def create_app() -> FastAPI:
     app.include_router(chat_router, prefix=PREFIX, tags=["chat"])
     app.include_router(users_router, prefix=PREFIX, tags=["users"])
 
+    # 호환성을 위해 /api prefix 없이도 접근 가능하도록 등록 (스키마 제외)
+    app.include_router(chat_router, include_in_schema=False)
+    app.include_router(users_router, include_in_schema=False)
+
     # 상태 체크 엔드포인트
     @app.get("/health")
     def health_check():
