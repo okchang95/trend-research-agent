@@ -5,6 +5,9 @@
 
 class StateManager {
     constructor() {
+        this.userId = null; // user_id (ObjectId 문자열)
+        this.userName = null; // user_name (표시용)
+        this.currentThreadId = null;
         this.currentSessionId = null;
         this.currentText = '';
         this.conversationHistory = [];
@@ -103,5 +106,28 @@ class StateManager {
     getFinalState() {
         return this.finalState;
     }
-}
 
+    setUserId(userId) {
+        this.userId = userId;
+    }
+
+    getUserId() {
+        return this.userId;
+    }
+
+    setUserName(userName) {
+        this.userName = userName;
+    }
+
+    getUserName() {
+        return this.userName;
+    }
+
+    setCurrentThreadId(threadId) {
+        this.currentThreadId = threadId;
+    }
+
+    getCurrentThreadId() {
+        return this.currentThreadId;
+    }
+}

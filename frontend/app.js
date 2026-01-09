@@ -7,6 +7,9 @@
 const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE_URL = isLocalDev ? 'http://localhost:8000' : window.location.origin;
 const API_STREAM_URL = API_BASE_URL + '/api/chat/stream';
+const API_THREADS_URL = API_BASE_URL + '/api/threads';
+const API_MESSAGES_URL = API_BASE_URL + '/api/threads';
+const API_USERS_URL = API_BASE_URL + '/api/users';
 
 // DOM 요소
 const userInput = document.getElementById('userInput');
@@ -14,6 +17,10 @@ const searchBtn = document.getElementById('searchBtn');
 const messagesContainer = document.getElementById('messagesContainer');
 const introSection = document.getElementById('introSection');
 const chatSection = document.getElementById('chatSection');
+const threadList = document.getElementById('threadList');
+const newThreadBtn = document.getElementById('newThreadBtn');
+const currentUserName = document.getElementById('currentUserName');
+const logoutBtn = document.getElementById('logoutBtn');
 
 // 상태 관리 및 모듈 초기화
 const stateManager = new StateManager();
@@ -24,15 +31,103 @@ const sseClient = new SSEClient(API_STREAM_URL);
 // 현재 스트림 상태
 let currentEventSource = null;
 
-// 검색 버튼 클릭 이벤트
-searchBtn.addEventListener('click', handleSearch);
-
-// Enter 키 이벤트
-userInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !searchBtn.disabled) {
-        handleSearch();
+// 페이지 로드 시 초기화
+window.addEventListener('DOMContentLoaded', () => {
+    // 로그아웃 버튼 이벤트 리스너
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // 새 대화 버튼 이벤트
+    if (newThreadBtn) {
+        newThreadBtn.addEventListener('click', handleNewThread);
+    }
+    
+    // 로그인 상태 확인
+    const userName = localStorage.getItem('userId'); // 실제로는 user_name이 저장됨
+    if (userName) {
+        // 로그인된 상태면 메인 페이지 초기화
+        showMainPage(userName).catch(error => {
+            console.error('Error initializing main page:', error);
+            alert('페이지 초기화 중 오류가 발생했습니다: ' + error.message);
+            window.location.href = '/landing.html';
+        });
+    } else {
+        // 로그인 안 된 상태면 렌딩 페이지로 리다이렉트
+        window.location.href = '/landing.html';
     }
 });
+
+/**
+ * 메인 페이지 표시
+ */
+async function showMainPage(userName) {
+    try {
+        // 1. 유저 이름으로 user_id 조회
+        const userResponse = await fetch(`${API_USERS_URL}?name=${encodeURIComponent(userName)}`);
+        const userResult = await userResponse.json();
+        
+        if (!userResult.success || !userResult.data) {
+            console.error('Failed to get user:', userResult.message);
+            alert('유저를 찾을 수 없습니다.');
+            window.location.href = '/landing.html';
+            return;
+        }
+        
+        const userId = userResult.data.user_id || userResult.data.id;
+        if (!userId) {
+            console.error('User ID is undefined. User result:', userResult);
+            alert('유저 ID를 찾을 수 없습니다.');
+            window.location.href = '/landing.html';
+            return;
+        }
+        
+        // 2. user_id를 stateManager에 저장 (user_id는 ObjectId 문자열)
+        stateManager.setUserId(userId);
+        // 사용자 이름은 별도로 저장 (표시용)
+        stateManager.setUserName(userName);
+        
+        // 3. UI에 사용자 이름 표시
+        const userNameDisplay = document.getElementById('currentUserName');
+        if (userNameDisplay) {
+            userNameDisplay.textContent = userName;
+        }
+        
+        // 4. Thread 리스트 로드
+        loadThreads();
+    } catch (error) {
+        console.error('Error in showMainPage:', error);
+        alert('페이지 초기화 중 오류가 발생했습니다.');
+        window.location.href = '/landing.html';
+    }
+}
+
+/**
+ * 로그아웃 처리
+ */
+function handleLogout() {
+    if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.removeItem('userId');
+        stateManager.setUserId(null);
+        window.location.href = '/landing.html';
+    }
+}
+
+// 검색 버튼 클릭 이벤트
+if (searchBtn) {
+    searchBtn.addEventListener('click', handleSearch);
+}
+
+// Enter 키 이벤트
+if (userInput) {
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !searchBtn.disabled) {
+            handleSearch();
+        }
+    });
+}
+
+// 이벤트 리스너는 DOMContentLoaded에서 등록됨
 
 /**
  * 검색 처리 함수
@@ -91,16 +186,197 @@ async function handleSearch() {
 }
 
 /**
+ * Thread 리스트 로드
+ */
+async function loadThreads() {
+    const userId = stateManager.getUserId(); // user_id (ObjectId 문자열)
+    if (!userId) {
+        console.error('User ID is not set');
+        threadList.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">유저 ID가 설정되지 않았습니다.</div>';
+        return;
+    }
+    
+    try {
+        // user_id로 thread 리스트 조회
+        const threadsResponse = await fetch(`${API_THREADS_URL}?user_id=${encodeURIComponent(userId)}`);
+        const threadsResult = await threadsResponse.json();
+        
+        console.log('Threads response:', threadsResult);
+        
+        if (threadsResult.success) {
+            const threads = threadsResult.data || [];
+            
+            if (threads.length === 0) {
+                threadList.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">Thread가 없습니다.</div>';
+                return;
+            }
+            
+            // updated_at 기준 최신순 정렬
+            const sortedThreads = threads.sort((a, b) => {
+                const dateA = new Date(a.updated_at);
+                const dateB = new Date(b.updated_at);
+                return dateB - dateA;
+            });
+            
+            renderThreadList(sortedThreads);
+        } else {
+            console.error('Failed to load threads:', threadsResult);
+            threadList.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">Thread를 불러올 수 없습니다: ' + (threadsResult.message || '알 수 없는 오류') + '</div>';
+        }
+    } catch (error) {
+        console.error('Error loading threads:', error);
+        threadList.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">Thread를 불러올 수 없습니다: ' + error.message + '</div>';
+    }
+}
+
+/**
+ * Thread 리스트 렌더링
+ */
+function renderThreadList(threads) {
+    threadList.innerHTML = '';
+    
+    if (threads.length === 0) {
+        threadList.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">Thread가 없습니다.</div>';
+        return;
+    }
+    
+    const currentThreadId = stateManager.getCurrentThreadId();
+    
+    threads.forEach(thread => {
+        const threadItem = document.createElement('div');
+        threadItem.className = 'thread-item';
+        threadItem.dataset.threadId = thread.thread_id;
+        if (currentThreadId === thread.thread_id) {
+            threadItem.classList.add('active');
+        }
+        threadItem.innerHTML = `<div class="thread-title">${escapeHtml(thread.title)}</div>`;
+        threadItem.addEventListener('click', () => {
+            loadThreadMessages(thread.thread_id);
+        });
+        threadList.appendChild(threadItem);
+    });
+}
+
+/**
+ * 새 대화 시작
+ */
+async function handleNewThread() {
+    const userId = stateManager.getUserId(); // user_id (ObjectId 문자열)
+    if (!userId) {
+        alert('유저 ID가 설정되지 않았습니다.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(API_THREADS_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ user_id: userId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const threadId = result.data.thread_id;
+            // Thread 리스트 새로고침
+            await loadThreads();
+            // 새로 생성된 thread의 메시지 로드 (빈 상태)
+            await loadThreadMessages(threadId);
+            // 입력 필드 포커스
+            userInput.focus();
+        } else {
+            alert('새 대화를 시작할 수 없습니다: ' + (result.message || '알 수 없는 오류'));
+        }
+    } catch (error) {
+        console.error('Error creating thread:', error);
+        alert('새 대화를 시작할 수 없습니다.');
+    }
+}
+
+/**
+ * Thread 메시지 로드
+ */
+async function loadThreadMessages(threadId) {
+    try {
+        stateManager.setCurrentThreadId(threadId);
+        
+        // 활성 thread 표시 업데이트
+        document.querySelectorAll('.thread-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.threadId === threadId) {
+                item.classList.add('active');
+            }
+        });
+        
+        const response = await fetch(`${API_MESSAGES_URL}/${threadId}/messages`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            // 메시지 컨테이너 초기화
+            messagesContainer.innerHTML = '';
+            stateManager.conversationHistory = [];
+            
+            // 메시지들을 시간순으로 정렬
+            const messages = result.data.sort((a, b) => {
+                const dateA = new Date(a.timestamp);
+                const dateB = new Date(b.timestamp);
+                return dateA - dateB;
+            });
+            
+            // 메시지 렌더링
+            messages.forEach(message => {
+                if (message.role === 'user') {
+                    addUserMessage(message.message, messagesContainer);
+                    stateManager.addToHistory('user', message.message);
+                } else if (message.role === 'assistant') {
+                    const messageId = 'msg-' + Date.now() + '-' + Math.random();
+                    addAssistantMessage(message.message, messageId, messagesContainer);
+                    stateManager.addToHistory('assistant', message.message);
+                }
+            });
+            
+            // 소개 섹션 숨기고 채팅 섹션 표시
+            introSection.style.display = 'none';
+            chatSection.style.display = 'block';
+            
+            // 스크롤을 맨 아래로
+            setTimeout(() => {
+                window.scrollTo({
+                    top: document.body.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 100);
+        } else {
+            console.error('Failed to load messages:', result.message);
+            alert('메시지를 불러올 수 없습니다.');
+        }
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        alert('메시지를 불러올 수 없습니다.');
+    }
+}
+
+/**
  * SSE 스트리밍 에이전트 실행
  */
 async function streamAgent(message) {
-    // 세션 ID가 있으면 사용
+    const userId = stateManager.getUserId();
+    if (!userId) {
+        alert('유저 ID가 설정되지 않았습니다.');
+        return;
+    }
+    
     const requestBody = {
+        user_id: userId,
         user_message: message
     };
-    const sessionId = stateManager.getSessionId();
-    if (sessionId) {
-        requestBody.session_id = sessionId;
+    
+    // 현재 thread_id가 있으면 추가 (첫 대화가 아닌 경우)
+    const currentThreadId = stateManager.getCurrentThreadId();
+    if (currentThreadId) {
+        requestBody.thread_id = currentThreadId;
     }
     
     try {
@@ -129,6 +405,9 @@ function handleStreamEvent(event) {
     
     // 이벤트 타입별 핸들러 호출
     switch (event.type) {
+        case 'thread':
+            eventHandlers.handleThreadEvent(event);
+            break;
         case 'session':
             eventHandlers.handleSessionEvent(event);
             break;

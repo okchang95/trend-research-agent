@@ -12,6 +12,17 @@ class EventHandlers {
         this.ui = uiUpdater;
     }
 
+    handleThreadEvent(event) {
+        const threadId = event.thread_id;
+        if (threadId) {
+            this.state.setCurrentThreadId(threadId);
+            // Thread 리스트 새로고침 (첫 채팅 시 thread 생성됨)
+            if (typeof loadThreads === 'function') {
+                loadThreads();
+            }
+        }
+    }
+
     handleSessionEvent(event) {
         this.state.setSessionId(event.session_id);
         console.log('Session ID:', event.session_id);
@@ -106,4 +117,3 @@ class EventHandlers {
         this.ui.resetButtonState();
     }
 }
-

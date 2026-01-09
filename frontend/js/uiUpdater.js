@@ -341,4 +341,3 @@ function toggleResearchFindings(button) {
         text.textContent = '조사 내용 보기';
     }
 }
-

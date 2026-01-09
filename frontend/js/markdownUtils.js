@@ -159,4 +159,3 @@ function processMarkdownWithMermaid(text) {
     html = replaceMermaidPlaceholders(html, placeholders);
     return html;
 }
-

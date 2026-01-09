@@ -71,4 +71,3 @@ function updateStreamingMessage(messageId, text, isFinal = false) {
         messageElement.classList.add('final');
     }
 }
-
