@@ -28,17 +28,26 @@ if (fs.existsSync(envPath)) {
     });
 }
 
-// API_BASE_URL 설정 (기본값: http://localhost:8000)
+// API_BASE_URL 설정
 // .env 파일에서 API_BASE_URL 또는 VITE_API_BASE_URL 둘 다 지원
-const API_BASE_URL = envVars.API_BASE_URL || envVars.VITE_API_BASE_URL || 'http://localhost:8000';
+// 기본값 없음: window.location.origin 사용 (프로덕션)
+const API_BASE_URL = envVars.API_BASE_URL || envVars.VITE_API_BASE_URL || null;
 
 // 환경 변수를 JavaScript 객체로 변환
-const envScript = `
+// API_BASE_URL이 없으면 빈 객체 (프로덕션에서는 window.location.origin 사용)
+const envScript = API_BASE_URL 
+    ? `
     <script>
         // .env 파일에서 읽어온 환경 변수
         window.__ENV__ = {
             API_BASE_URL: '${API_BASE_URL}'
         };
+    </script>
+`
+    : `
+    <script>
+        // .env 파일에 API_BASE_URL이 없으면 빈 객체 (프로덕션: window.location.origin 사용)
+        window.__ENV__ = {};
     </script>
 `;
 

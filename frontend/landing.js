@@ -5,11 +5,8 @@
 
 // API 엔드포인트 설정
 // .env 파일에서 환경 변수 읽기 (window.__ENV__에 설정됨)
-// 프로덕션 환경에서는 항상 같은 origin 사용 (nginx 프록시를 통해)
-const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE_URL = isLocalDev 
-    ? (window.__ENV__?.API_BASE_URL || 'http://localhost:8000')
-    : window.location.origin; // 프로덕션: 같은 origin 사용 (nginx 프록시)
+// window.__ENV__가 없으면 window.location.origin 사용 (프로덕션: nginx 프록시)
+const API_BASE_URL = window.__ENV__?.API_BASE_URL || window.location.origin;
 const API_USERS_URL = API_BASE_URL + '/api/users';
 
 // 디버깅: API URL 확인

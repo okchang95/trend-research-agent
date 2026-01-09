@@ -5,8 +5,9 @@
 
 // .env 파일에서 읽어올 환경 변수
 // 실제 사용 시에는 빌드 스크립트가 .env 파일을 읽어서 이 값을 업데이트합니다
+// 기본값 없음: 브라우저에서는 window.location.origin 사용 (프로덕션)
 const ENV_CONFIG = {
-    API_BASE_URL: process.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    API_BASE_URL: process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || null
 };
 
 // 브라우저에서 사용할 수 있도록 window 객체에 설정

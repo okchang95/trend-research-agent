@@ -8,8 +8,8 @@
 
 - `API_BASE_URL` 또는 `VITE_API_BASE_URL`: API 서버의 기본 URL
   - 둘 다 지원합니다 (더 간단한 `API_BASE_URL` 권장)
-  - 개발 환경: `http://localhost:8000`
-  - 프로덕션: 빈 값으로 두면 `window.location.origin` 사용
+  - 개발 환경: `.env` 파일에 `API_BASE_URL=http://localhost:8000` 설정
+  - 프로덕션: `.env` 파일에 설정하지 않으면 자동으로 `window.location.origin` 사용 (nginx 프록시)
 
 ## 사용 방법
 
@@ -17,10 +17,11 @@
 
 ```bash
 # frontend/.env 파일 생성
-# API_BASE_URL 또는 VITE_API_BASE_URL 둘 다 사용 가능
+# 개발 환경에서만 설정 (로컬 개발 시)
 API_BASE_URL=http://localhost:8000
-# 또는
-# VITE_API_BASE_URL=http://localhost:8000
+
+# 프로덕션에서는 설정하지 않음 (자동으로 window.location.origin 사용)
+# API_BASE_URL=
 ```
 
 ### 2. 환경 변수 주입 스크립트 실행
@@ -40,10 +41,8 @@ JavaScript 파일(`app.js`, `landing.js`)에서는 다음과 같이 사용합니
 
 ```javascript
 // window.__ENV__ 객체에서 환경 변수 읽기
-const API_BASE_URL = window.__ENV__?.API_BASE_URL || 
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:8000' 
-        : window.location.origin);
+// .env에 설정되어 있으면 사용, 없으면 window.location.origin 사용 (프로덕션)
+const API_BASE_URL = window.__ENV__?.API_BASE_URL || window.location.origin;
 ```
 
 ## 자동화

@@ -9,10 +9,8 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <!-- 환경 변수 설정 (inject-env.js 스크립트로 자동 주입됨) -->
     <script>
-        // .env 파일에서 읽어온 값 (기본값: http://localhost:8000)
-        window.__ENV__ = {
-            API_BASE_URL: 'http://localhost:8000'
-        };
+        // .env 파일에서 읽어온 값 (없으면 빈 객체, 프로덕션에서는 window.location.origin 사용)
+        window.__ENV__ = window.__ENV__ || {};
     </script>
 </head>
 <body>
