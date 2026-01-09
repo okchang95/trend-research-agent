@@ -1,8 +1,8 @@
 from langchain_openai import ChatOpenAI
 
-from app.core.config import Config
+from app.core.config import get_config
 
-config = Config()
+config = get_config()
 
 
 SCOPING_LLM = ChatOpenAI(

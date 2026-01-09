@@ -86,9 +86,9 @@ class ChatService:
     async def _summarize_context(self, conversations, conversations_summary):
         from langchain_openai import ChatOpenAI
         from langchain_core.prompts import PromptTemplate
-        from app.core.config import Config
+        from app.core.config import get_config
 
-        config = Config()
+        config = get_config()
         llm = ChatOpenAI(
             model="gpt-4o-mini", temperature=0, api_key=config.OPENAI_API_KEY
         )
@@ -119,9 +119,9 @@ class ChatService:
     async def _summarize_report(self, report: str):
         from langchain_openai import ChatOpenAI
         from langchain_core.prompts import PromptTemplate
-        from app.core.config import Config
+        from app.core.config import get_config
 
-        config = Config()
+        config = get_config()
         llm = ChatOpenAI(
             model="gpt-4o-mini", temperature=0, api_key=config.OPENAI_API_KEY
         )

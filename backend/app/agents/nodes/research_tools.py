@@ -16,10 +16,10 @@ from langchain_core.tools import tool
 from langchain_community.tools import ArxivQueryRun
 from langchain_community.utilities import ArxivAPIWrapper
 
-from app.core.config import Config
+from app.core.config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
+config = get_config()
 
 
 # Tavily API를 직접 호출하는 커스텀 도구
