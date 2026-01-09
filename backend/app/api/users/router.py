@@ -28,11 +28,11 @@ async def create_user(
 
 @router.get("/users")
 async def get_user_by_name(
-    user: str,
+    name: str,
     service: UserService = Depends(get_user_service),
 ):
     try:
-        result = await service.get_user_by_name(user)
+        result = await service.get_user_by_name(name)
         return CommonResponse.success_response(
             message="User retrieved successfully",
             data=result,

@@ -35,7 +35,7 @@ class UserService:
         if not user_data:
             raise HTTPException(status_code=404, detail="존재하지 않는 유저입니다.")
         return {
-            "id": str(user_data["_id"]),
+            "user_id": str(user_data["_id"]),
             "name": user_data["name"],
             "password": user_data["password"],
             "created_at": user_data["created_at"],
