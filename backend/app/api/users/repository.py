@@ -1,7 +1,7 @@
 from bson import ObjectId
 from pymongo.database import Database
 
-from app.db.collectios import MongoCollections
+from app.db.collections import MongoCollections
 
 
 class UserRepository:
