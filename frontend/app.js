@@ -4,8 +4,11 @@
  */
 
 // API 엔드포인트 설정
-const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE_URL = isLocalDev ? 'http://localhost:8000' : window.location.origin;
+// .env 파일에서 환경 변수 읽기 (window.__ENV__에 설정됨)
+const API_BASE_URL = window.__ENV__?.API_BASE_URL || 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? 'http://localhost:8000' 
+        : window.location.origin);
 const API_STREAM_URL = API_BASE_URL + '/api/chat/stream';
 const API_THREADS_URL = API_BASE_URL + '/api/threads';
 const API_MESSAGES_URL = API_BASE_URL + '/api/threads';
