@@ -162,6 +162,15 @@ async function handleSignup() {
             body: JSON.stringify({ name: userName, password: password })
         });
         
+        // HTTP 상태 코드 확인
+        if (!response.ok) {
+            console.error('HTTP Error:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            alert(`회원가입 실패: ${response.status} ${response.statusText}`);
+            return;
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -175,6 +184,6 @@ async function handleSignup() {
         }
     } catch (error) {
         console.error('Error during signup:', error);
-        alert('회원가입 중 오류가 발생했습니다.');
+        alert('회원가입 중 오류가 발생했습니다: ' + error.message);
     }
 }
