@@ -43,18 +43,37 @@ async def chat_stream(
 #
 # Threads Controllers
 # 1. GET threads list
-# TODO: 2. Update thread title
-# TODO: 3. Delete thread
+# 2. POST create new thread
+# TODO: 3. Update thread title
+# TODO: 4. Delete thread
 #
 ############################################################
 @router.get("/threads")
 async def get_threads(
+    user_id: str,
     service: ChatThreadService = Depends(get_chat_thread_service),
 ):
     try:
-        result = await service.get_threads()
+        result = await service.get_threads(user_id)
         return CommonResponse.success_response(
             message="Threads retrieved successfully",
+            data=result,
+        )
+    except HTTPException as e:
+        return CommonResponse.fail_response(message=e.detail)
+    except Exception as e:
+        return ErrorResponse.fail_response(message=str(e))
+
+
+@router.post("/threads")
+async def create_thread(
+    payload: ChatThreadCreate,
+    service: ChatThreadService = Depends(get_chat_thread_service),
+):
+    try:
+        result = await service.create_thread(payload)
+        return CommonResponse.success_response(
+            message="Thread created successfully",
             data=result,
         )
     except HTTPException as e:

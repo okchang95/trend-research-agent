@@ -9,7 +9,12 @@ from langchain_core.prompts import PromptTemplate
 
 from app.agents.runner import AgentRunner
 from app.api.chat.repository import ChatMessageRepository, ChatThreadRepository
-from app.api.chat.schemas import ChatRequest, ChatThreadResponse, ChatMessageResponse
+from app.api.chat.schemas import (
+    ChatRequest,
+    ChatThreadCreate,
+    ChatThreadResponse,
+    ChatMessageResponse,
+)
 from app.api.chat.models import ChatThread, ChatMessage, MessageRole
 from app.core.config import get_config
 
@@ -25,8 +30,8 @@ class ChatThreadService:
     def __init__(self, repo: ChatThreadRepository):
         self._repo = repo
 
-    async def get_threads(self):
-        threads = await self._repo.get_all()
+    async def get_threads(self, user_id: str):
+        threads = await self._repo.get_all_by_user_id(user_id)
         if not threads:
             return []
         return [
@@ -38,6 +43,26 @@ class ChatThreadService:
             )
             for thread in threads
         ]
+
+    async def create_thread(self, payload: ChatThreadCreate):
+        requested_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
+        user_id = payload.user_id
+        thread = ChatThread(
+            user_id=user_id,
+            title="New Thread",
+            created_at=requested_at,
+            updated_at=requested_at,
+        ).model_dump()
+        thread["user_id"] = ObjectId(user_id)
+
+        thread_id = await self._repo.create(thread)
+
+        return ChatThreadResponse(
+            thread_id=str(thread_id),
+            title=thread["title"],
+            created_at=thread["created_at"],
+            updated_at=thread["updated_at"],
+        )
 
 
 class ChatMessageService:
@@ -93,6 +118,7 @@ class ChatService:
         6) thread title update (if first message, update title)
         """
         user_id = payload.user_id
+        thread_id = payload.thread_id
         user_message = payload.user_message
         requested_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
 
@@ -101,10 +127,9 @@ class ChatService:
         # --------------------------------------------------------------------------------------------
         # 1. 스레드 조회
         # --------------------------------------------------------------------------------------------
-        thread: dict = await self._repo_chat_thread.get_by_user_id(user_id)
         is_new_thread = False
 
-        if not thread:
+        if not thread_id:
             is_new_thread = True
             thread = ChatThread(
                 user_id=user_id,
@@ -116,7 +141,7 @@ class ChatService:
             thread_id = await self._repo_chat_thread.create(thread)
             thread["_id"] = thread_id
         else:
-            thread_id = str(thread["_id"])
+            thread = await self._repo_chat_thread.get_by_oid(thread_id)
 
         # 스레드 ID 전송
         yield {

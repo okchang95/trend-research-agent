@@ -14,14 +14,10 @@ class ChatThreadRepository:
         result = await self._col.insert_one(data)
         return result.inserted_id
 
-    # READ ALL
-    async def get_all(self):
-        return await self._col.find().to_list(length=None)
-
-    # READ BY USER_ID
-    async def get_by_user_id(self, user_id: str):
+    # READ ALL BY USER_ID
+    async def get_all_by_user_id(self, user_id: str):
         filter_ = {"user_id": ObjectId(user_id)}
-        return await self._col.find_one(filter=filter_)
+        return await self._col.find(filter=filter_).to_list(length=None)
 
     # READ BY ObjectId
     async def get_by_oid(self, oid: str):

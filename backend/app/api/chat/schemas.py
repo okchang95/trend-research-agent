@@ -41,6 +41,7 @@ class ChatMessageResponse(BaseModel):
 ############################################################
 class ChatRequest(BaseModel):
     user_id: str
+    thread_id: Optional[str] = Field(default=None)
     user_message: str
 
 
