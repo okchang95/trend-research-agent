@@ -96,31 +96,3 @@ class AgentRunner:
                 "type": "error",
                 "error": str(e),
             }
-
-    async def run(
-        self, user_message: str, conversations: List[Dict], conversations_summary: str
-    ):
-        # AgentState의 모든 필수 필드 초기화
-        state = AgentState(
-            current_node="",
-            user_message=user_message,
-            conversations=conversations,
-            conversations_summary=conversations_summary,
-            is_clarified=False,
-            reason="",
-            subject="",
-            scope="",
-            brief_requirement="",
-            findings=[],
-            answer="",
-        )
-        # 그래프 실행
-        try:
-            result_state = await self.graph_app.ainvoke(state)
-            logger.info(f"Result state: {result_state}")
-            return {
-                "answer": result_state.get("answer", ""),
-            }
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            raise RuntimeError("Agent request failed.")
