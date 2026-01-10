@@ -1160,13 +1160,18 @@ main {
 
   /* 사이드바 기본적으로 숨김 (왼쪽으로 밀어냄) */
   .sidebar {
-    transform: translateX(-100%);
+    transform: translateX(-100%) !important;
     width: 280px; /* 모바일에서 약간 더 넓게 */
   }
 
   /* 사이드바 열림 상태 */
   .sidebar.open {
-    transform: translateX(0);
+    transform: translateX(0) !important;
+  }
+
+  /* 사이드바 닫힘 상태 명시적 처리 */
+  .sidebar.closed {
+    transform: translateX(-100%) !important;
   }
 
   /* 사이드바 오버레이 표시 */

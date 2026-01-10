@@ -26,15 +26,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const handleResize = () => {
       const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
-      // 모바일로 전환되면 사이드바 닫기
-      if (mobile && isOpen) {
-        setIsOpen(false);
+      // 데스크탑으로 전환되면 사이드바 열기, 모바일로 전환되면 닫기
+      if (!mobile) {
+        // 데스크탑: 항상 열림
+        setIsOpen(false); // isOpen은 모바일 전용이므로 false로 유지
+      } else if (mobile && isOpen) {
+        // 모바일로 전환될 때 열려있으면 닫기
+        // setIsOpen은 그대로 유지 (사용자가 열어둔 상태면 유지)
       }
     };
 
     window.addEventListener('resize', handleResize);
     // 초기 상태 설정
-    handleResize();
+    const initialMobile = window.innerWidth <= 768;
+    setIsMobile(initialMobile);
     
     return () => window.removeEventListener('resize', handleResize);
   }, [isOpen]);
@@ -53,8 +58,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen);
+  const toggleSidebar = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setIsOpen(prev => !prev);
   };
 
   const closeSidebar = () => {
@@ -86,7 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <button
         className={`menu-toggle ${isOpen && isMobile ? 'active' : ''}`}
         onClick={toggleSidebar}
-        aria-label="메뉴 열기"
+        aria-label={isOpen ? '메뉴 닫기' : '메뉴 열기'}
+        type="button"
       >
         <span></span>
         <span></span>
@@ -101,7 +108,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ></div>
 
       {/* 사이드바 */}
-      <aside className={`sidebar ${sidebarIsOpen ? 'open' : 'closed'}`} id="sidebar">
+      <aside 
+        className={`sidebar ${sidebarIsOpen ? 'open' : 'closed'}`} 
+        id="sidebar"
+      >
 
         <div className="sidebar-header">
           <h1 
