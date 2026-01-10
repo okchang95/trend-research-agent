@@ -412,14 +412,16 @@ main {
     right: 0;
     padding: 20px 30px;
     background: white;
-    border-top: 1px solid #e0e0e0;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     z-index: 1000;
+    display: flex;
+    justify-content: center;
 }
 
 .input-wrapper {
     display: flex;
     gap: 10px;
+    max-width: 800px;
+    width: 100%;
 }
 
 #userInput {
@@ -470,10 +472,14 @@ main {
     align-items: center;
     justify-content: center;
     padding: 40px 20px;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
 }
 
 .intro-content {
     max-width: 800px;
+    width: 100%;
     text-align: center;
 }
 
@@ -542,7 +548,7 @@ main {
 /* 대화 섹션 */
 .chat-section {
     width: 100%;
-    max-width: 1200px;
+    max-width: 800px;
     margin: 0 auto;
 }
 
@@ -550,7 +556,8 @@ main {
     padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
+    width: 100%;
 }
 
 .placeholder {
@@ -573,6 +580,7 @@ main {
 
 .message.assistant-message {
     justify-content: flex-start;
+    width: 100%;
 }
 
 .message-content {
@@ -589,20 +597,24 @@ main {
 }
 
 .assistant-message .message-content {
-    background: white;
+    background: transparent;
     color: #333;
-    border: 1px solid #e0e0e0;
-    border-bottom-left-radius: 4px;
+    border: none;
+    border-radius: 0;
+    max-width: 100%;
+    padding: 0;
 }
 
 .message-text {
     color: inherit;
-    line-height: 1.6;
+    line-height: 1.8;
     word-wrap: break-word;
+    width: 100%;
 }
 
 .assistant-message .message-text {
     color: #333;
+    width: 100%;
 }
 
 /* 마크다운 스타일링 */
@@ -810,13 +822,14 @@ main {
 }
 
 .node-status {
-    margin-bottom: 0.5em;
-    padding: 6px 10px;
+    margin-bottom: 1em;
+    padding: 10px 14px;
     background: #f0f4ff;
-    border-radius: 4px;
+    border-radius: 6px;
     border-left: 3px solid #667eea;
     transition: all 0.3s ease;
-    font-size: 0.85em;
+    font-size: 0.9em;
+    width: 100%;
 }
 
 .node-status.progressing {
@@ -860,12 +873,13 @@ main {
 
 /* 조사 상태 메시지 스타일 (한 줄 동적 업데이트) */
 .research-status-container {
-    margin: 0.5em 0;
-    padding: 8px 12px;
+    margin: 1em 0;
+    padding: 12px 16px;
     background: #f0f4ff;
     border-radius: 6px;
     border-left: 3px solid #667eea;
     animation: subtlePulse 2s ease-in-out infinite;
+    width: 100%;
 }
 
 .research-status-message {
@@ -938,11 +952,12 @@ main {
 
 /* 조사 내용 토글 스타일 */
 .research-findings-container {
-    margin: 0.5em 0;
-    padding: 8px 12px;
+    margin: 1em 0;
+    padding: 12px 16px;
     background: #f8f9fa;
     border-radius: 6px;
     border-left: 3px solid #667eea;
+    width: 100%;
 }
 
 .research-findings-header {
@@ -1077,11 +1092,12 @@ main {
 
 /* 조사 내용 토글 스타일 */
 .research-findings-container {
-    margin: 0.5em 0;
-    padding: 8px 12px;
+    margin: 1em 0;
+    padding: 12px 16px;
     background: #f8f9fa;
     border-radius: 6px;
     border-left: 3px solid #667eea;
+    width: 100%;
 }
 
 .research-findings-header {
