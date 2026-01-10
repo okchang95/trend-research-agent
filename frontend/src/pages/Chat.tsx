@@ -77,7 +77,11 @@ export const Chat: React.FC = () => {
       setMessages(sortedMessages);
       setCurrentThreadId(threadId);
       setShowIntro(false);
+      // 스트리밍 상태 초기화
       setStreamingContent('');
+      setNodeStatus(null);
+      setResearchStatus(null);
+      setFindings([]);
     } catch (error) {
       console.error('Error loading messages:', error);
       alert('메시지를 불러올 수 없습니다.');

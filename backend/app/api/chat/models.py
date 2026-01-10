@@ -23,6 +23,7 @@ class ChatMessage(BaseModel):
     ended_node: Optional[str] = Field(default=None)
     message: Optional[str] = Field(default=None)
     report_summary: Optional[str] = Field(default=None)
+    findings: Optional[List[dict]] = Field(default=None)
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(tz=ZoneInfo("Asia/Seoul"))
     )

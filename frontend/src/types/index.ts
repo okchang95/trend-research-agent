@@ -16,6 +16,7 @@ export interface Message {
   thread_id: string;
   role: 'user' | 'assistant';
   message: string;
+  findings?: Finding[];
   timestamp: string;
 }
 

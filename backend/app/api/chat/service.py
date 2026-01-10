@@ -83,6 +83,7 @@ class ChatMessageService:
                 thread_id=str(message["thread_id"]),
                 role=message["role"],
                 message=message["message"],
+                findings=message.get("findings", None),
                 timestamp=message["timestamp"],
             )
             for message in messages
@@ -200,6 +201,7 @@ class ChatService:
         final_answer = None
         current_node = None
         report_summary = None
+        findings = None
 
         try:
             # 에이전트 스트리밍 실행
@@ -208,11 +210,12 @@ class ChatService:
                 conversations=unsummarized_messages,
                 conversations_summary=conversations_summary,
             ):
-                # final 이벤트에서 answer와 current_node 추출
+                # final 이벤트에서 answer, current_node, findings 추출
                 if event.get("type") == "final":
                     state = event.get("state", {})
                     final_answer = state.get("answer", "")
                     current_node = state.get("current_node", "")
+                    findings = state.get("findings", None)
 
                 yield event
 
@@ -251,6 +254,7 @@ class ChatService:
             ended_node=current_node,
             message=final_answer,
             report_summary=report_summary,
+            findings=findings,
             timestamp=generated_at,
         )
         assistant_message_obj = assistant_message_obj.model_dump()

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -31,6 +31,7 @@ class ChatMessageResponse(BaseModel):
     thread_id: str
     role: MessageRole
     message: str
+    findings: Optional[List[dict]] = None
     timestamp: datetime
 
 
