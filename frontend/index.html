@@ -1,110 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent UX</title>
-    <link rel="stylesheet" href="/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-    <!-- 환경 변수 설정 (inject-env.js 스크립트로 자동 주입됨) -->
-    <script>
-        // .env 파일에서 읽어온 값 (없으면 빈 객체, 프로덕션에서는 window.location.origin 사용)
-        window.__ENV__ = window.__ENV__ || {};
-    </script>
-</head>
-<body>
-    <!-- 햄버거 메뉴 버튼 (모바일용) -->
-    <button id="menuToggle" class="menu-toggle" aria-label="메뉴 열기">
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
-    
-    <!-- 사이드바 오버레이 (모바일용) -->
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    
-    <!-- 왼쪽 사이드바 -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h1>Trend Agent demo</h1>
-            <div class="sidebar-user-info">
-                <span id="currentUserName" class="user-name-display"></span>
-                <button id="logoutBtn" class="logout-btn" title="로그아웃">로그아웃</button>
-            </div>
-            <button id="newThreadBtn" class="new-thread-btn">+ 새 대화</button>
-        </div>
-        <div class="sidebar-content">
-            <div id="threadList" class="thread-list">
-                <!-- Thread 리스트가 여기에 동적으로 추가됩니다 -->
-            </div>
-        </div>
-    </aside>
-    
-    <!-- 메인 콘텐츠 영역 -->
-    <main>
-        <!-- 서비스 소개 섹션 (최초 대화 이전) -->
-        <div id="introSection" class="intro-section">
-            <div class="intro-content">
-                <h2>🤖 AI 트렌드 분석 어시스턴트</h2>
-                <p class="intro-description">
-                    연구/기술/산업 등의 <strong>최신 트렌드</strong>를 분석하여 종합 보고서를 제공하는 AI 어시스턴트입니다.
-                </p>
-                <div class="intro-features">
-                    <div class="feature-item">
-                        <span class="feature-icon">🔍</span>
-                        <div>
-                            <h3>요구사항 명확화</h3>
-                            <p>대화를 통해 분석하고 싶은 주제와 범위를 명확히 파악합니다.</p>
-                        </div>
-                    </div>
-                    <div class="feature-item">
-                        <span class="feature-icon">📚</span>
-                        <div>
-                            <h3>자료 수집</h3>
-                            <p>웹 검색과 학술 논문 검색(ArXiv)을 통해 <strong>최신 정보</strong>를 수집합니다.</p>
-                        </div>
-                    </div>
-                    <div class="feature-item">
-                        <span class="feature-icon">✍️</span>
-                        <div>
-                            <h3>보고서 작성</h3>
-                            <p>수집된 자료를 바탕으로 테이블, 다이어그램, 출처가 포함된 마크다운 보고서를 생성합니다.</p>
-                        </div>
-                    </div>
-                </div>
-                <p class="intro-start">아래 입력창에 분석하고 싶은 주제를 입력해주세요.</p>
-            </div>
-        </div>
-        
-        <!-- 대화 영역 (대화 시작 후 표시) -->
-        <div id="chatSection" class="chat-section" style="display: none;">
-            <div id="messagesContainer" class="messages-container">
-            </div>
-        </div>
-    </main>
-    
-    <!-- 입력 섹션 (고정) -->
-    <div class="input-section">
-        <div class="input-wrapper">
-            <input 
-                type="text" 
-                id="userInput" 
-                placeholder="분석하고 싶은 주제를 입력하세요..."
-                autocomplete="off"
-            >
-            <button id="searchBtn" class="search-btn">전송</button>
-        </div>
-    </div>
-    
-    <!-- 모듈화된 스크립트 로드 -->
-    <script src="/js/markdownUtils.js"></script>
-    <script src="/js/stateManager.js"></script>
-    <script src="/js/messageRenderer.js"></script>
-    <script src="/js/sseClient.js"></script>
-    <script src="/js/uiUpdater.js"></script>
-    <script src="/js/eventHandlers.js"></script>
-    <script src="/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 트렌드 분석 어시스턴트</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
-
