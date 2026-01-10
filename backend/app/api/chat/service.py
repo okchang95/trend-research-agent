@@ -214,6 +214,18 @@ class ChatService:
             else:
                 thread = await self._repo_chat_thread.get_by_oid(thread_id)
 
+            # --------------------------------------------------------------------------------------------
+            # ★ Task 등록 (thread_id를 알게 된 직후 바로 등록 - 중지 버튼이 즉시 작동하도록)
+            # --------------------------------------------------------------------------------------------
+            current_task = asyncio.current_task()
+            self._active_tasks[thread_id] = (current_task, cancel_event)
+            logger.info(f"Task registered for thread {thread_id}")
+
+            # 취소 체크
+            if cancel_event.is_set():
+                logger.info(f"Cancellation requested early for thread {thread_id}")
+                return
+
             # 스레드 ID 전송
             await event_queue.put(
                 {
@@ -226,6 +238,13 @@ class ChatService:
             # --------------------------------------------------------------------------------------------
             # 2. 메세지 저장 (user_message)
             # --------------------------------------------------------------------------------------------
+            # 취소 체크
+            if cancel_event.is_set():
+                logger.info(
+                    f"Cancellation requested before saving user message for thread {thread_id}"
+                )
+                return
+
             user_message_obj = ChatMessage(
                 thread_id=thread_id,
                 role=MessageRole.USER,
@@ -241,6 +260,13 @@ class ChatService:
             # 3. 제목 생성 (if first message)
             # --------------------------------------------------------------------------------------------
             if is_new_thread:
+                # 취소 체크
+                if cancel_event.is_set():
+                    logger.info(
+                        f"Cancellation requested before title generation for thread {thread_id}"
+                    )
+                    return
+
                 thread_title = await self._generate_thread_title(
                     [{"role": "user", "message": user_message}]
                 )
@@ -259,6 +285,13 @@ class ChatService:
             # --------------------------------------------------------------------------------------------
             # 4. last_summarized_at 이후의 메세지 조회 (short term memory)
             # --------------------------------------------------------------------------------------------
+            # 취소 체크
+            if cancel_event.is_set():
+                logger.info(
+                    f"Cancellation requested before loading messages for thread {thread_id}"
+                )
+                return
+
             unsummarized_messages = (
                 await self._repo_chat_message.get_unsummarized_by_thread_id(
                     thread_id=thread_id,
@@ -286,16 +319,19 @@ class ChatService:
             conversations_summary = thread.get("conversation_summary", "")
 
             # --------------------------------------------------------------------------------------------
-            # 5. Thread Status를 GENERATING으로 변경 & Task 등록
+            # 5. Thread Status를 GENERATING으로 변경
             # --------------------------------------------------------------------------------------------
+            # 취소 체크
+            if cancel_event.is_set():
+                logger.info(
+                    f"Cancellation requested before agent execution for thread {thread_id}"
+                )
+                return
+
             await self._repo_chat_thread.update(
                 thread_id,
                 {"status": ThreadStatus.GENERATING, "updated_at": requested_at},
             )
-
-            # 현재 실행 중인 task 등록 (중지 기능을 위해)
-            current_task = asyncio.current_task()
-            self._active_tasks[thread_id] = (current_task, cancel_event)
 
             # --------------------------------------------------------------------------------------------
             # 6. 에이전트 실행
@@ -514,6 +550,40 @@ class ChatService:
             raise
 
         finally:
+            # cancel_event가 설정되었고 아직 중지 메시지가 저장되지 않은 경우 저장
+            # (Agent 실행 전에 취소된 경우를 위해)
+            if cancel_event.is_set():
+                # Thread status 확인하여 이미 처리되었는지 체크
+                current_thread = await self._repo_chat_thread.get_by_oid(thread_id)
+                if (
+                    current_thread
+                    and current_thread.get("status") == ThreadStatus.GENERATING
+                ):
+                    logger.info(
+                        f"Saving cancellation message in finally for thread {thread_id}"
+                    )
+
+                    generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
+                    cancelled_message = "**[응답이 중지되었습니다]**"
+
+                    # Assistant 메시지 저장
+                    assistant_message_obj = ChatMessage(
+                        thread_id=thread_id,
+                        role=MessageRole.ASSISTANT,
+                        ended_node="cancelled",
+                        message=cancelled_message,
+                        timestamp=generated_at,
+                    )
+                    assistant_message_obj = assistant_message_obj.model_dump()
+                    assistant_message_obj["thread_id"] = ObjectId(thread_id)
+                    await self._repo_chat_message.create(assistant_message_obj)
+
+                    # Thread status를 IDLE로
+                    await self._repo_chat_thread.update(
+                        thread_id,
+                        {"status": ThreadStatus.IDLE, "updated_at": generated_at},
+                    )
+
             # 종료 신호 전송
             try:
                 await event_queue.put(None)
@@ -660,7 +730,7 @@ class ChatService:
 
     async def cancel_stream(self, thread_id: str) -> bool:
         """
-        진행 중인 agent task를 취소
+        진행 중인 agent task를 즉시 취소
 
         Args:
             thread_id: 취소할 thread의 ID
@@ -668,45 +738,33 @@ class ChatService:
         Returns:
             bool: Task가 취소되었으면 True, 실행 중인 task가 없으면 False
         """
+        logger.info(f"Cancel stream requested for thread {thread_id}")
         task_info = self._active_tasks.get(thread_id)
 
-        if task_info:
-            background_task, cancel_event = task_info
+        if not task_info:
+            logger.warning(f"No active task found for thread {thread_id}")
+            return False
 
-            if not background_task.done():
-                logger.info(f"Cancelling background task for thread {thread_id}")
+        background_task, cancel_event = task_info
 
-                # 1. 먼저 cancel_event 설정 (graceful shutdown)
-                cancel_event.set()
+        if not background_task.done():
+            logger.info(f"Cancelling background task for thread {thread_id}")
 
-                # 2. 약간 대기 (Agent가 취소를 감지하고 정리할 시간)
-                try:
-                    await asyncio.wait_for(asyncio.shield(background_task), timeout=1.0)
-                except asyncio.TimeoutError:
-                    # 3. 1초 내에 끝나지 않으면 강제 취소
-                    logger.warning(
-                        f"Task did not finish gracefully, forcing cancellation for thread {thread_id}"
-                    )
-                    background_task.cancel()
-                    try:
-                        await background_task
-                    except asyncio.CancelledError:
-                        pass
-                except Exception as e:
-                    logger.error(f"Error during task cancellation: {e}")
+            # 1. cancel_event 설정 (finally에서 중지 메시지 저장용)
+            cancel_event.set()
 
-                # Task 제거
-                self._active_tasks.pop(thread_id, None)
+            # 2. 즉시 강제 취소 (대기 없이)
+            background_task.cancel()
+            try:
+                await background_task
+            except asyncio.CancelledError:
+                logger.info(f"Task cancelled successfully for thread {thread_id}")
+            except Exception as e:
+                logger.error(f"Error during task cancellation: {e}")
 
-                # Thread status를 IDLE로 변경
-                try:
-                    await self._repo_chat_thread.update(
-                        thread_id,
-                        {"status": ThreadStatus.IDLE},
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to update thread status: {e}")
+            # Task 제거
+            self._active_tasks.pop(thread_id, None)
 
-                return True
+            return True
 
         return False
