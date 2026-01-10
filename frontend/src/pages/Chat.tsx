@@ -8,7 +8,7 @@ import { Sidebar } from '../components/Sidebar';
 import { MessageList } from '../components/MessageList';
 import { InputSection } from '../components/InputSection';
 import { IntroSection } from '../components/IntroSection';
-import { Message, SSEEvent } from '../types';
+import { Message, SSEEvent, SearchResult, Finding } from '../types';
 
 export const Chat: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +18,9 @@ export const Chat: React.FC = () => {
 
   const [showIntro, setShowIntro] = useState(true);
   const [streamingContent, setStreamingContent] = useState('');
+  const [nodeStatus, setNodeStatus] = useState<{ name: string; status: 'in_progress' | 'completed' } | null>(null);
+  const [researchStatus, setResearchStatus] = useState<{ message: string; results?: SearchResult[] } | null>(null);
+  const [findings, setFindings] = useState<Finding[]>([]);
   const prevUserIdRef = useRef<string | null>(null);
 
   // 로그인 상태 확인 및 로그아웃 시 채팅 데이터 초기화
@@ -87,6 +90,9 @@ export const Chat: React.FC = () => {
     setCurrentThreadId(null);
     setShowIntro(true);
     setStreamingContent('');
+    setNodeStatus(null);
+    setResearchStatus(null);
+    setFindings([]);
   };
 
   // 홈으로 돌아가기 (대화 시작 전 상태)
@@ -95,6 +101,9 @@ export const Chat: React.FC = () => {
     setMessages([]);
     setCurrentThreadId(null);
     setStreamingContent('');
+    setNodeStatus(null);
+    setResearchStatus(null);
+    setFindings([]);
   };
 
   // SSE 이벤트 처리
@@ -123,21 +132,38 @@ export const Chat: React.FC = () => {
       case 'node_start':
         // 노드 시작
         console.log('Node start:', event.node);
+        if (event.node !== 'clarify_requirement') {
+          setNodeStatus({ name: event.node, status: 'in_progress' });
+        }
         break;
 
       case 'node_complete':
         // 노드 완료
         console.log('Node complete:', event.node);
+        if (event.node !== 'clarify_requirement') {
+          setNodeStatus({ name: event.node, status: 'completed' });
+          // 완료 후 일정 시간 후 상태 초기화 (선택사항)
+          setTimeout(() => {
+            setNodeStatus(null);
+          }, 2000);
+        }
         break;
 
       case 'research_status':
         // 조사 상태 업데이트
         console.log('Research status:', event.message);
+        setResearchStatus({
+          message: event.message,
+          results: event.results || []
+        });
         break;
 
       case 'research_findings':
         // 조사 결과
         console.log('Research findings:', event.findings);
+        setFindings(event.findings || []);
+        // research status 숨기기
+        setResearchStatus(null);
         break;
 
       case 'text_chunk':
@@ -156,6 +182,10 @@ export const Chat: React.FC = () => {
           };
           addMessage(assistantMessage);
           setStreamingContent('');
+          // 스트리밍 관련 상태 초기화
+          setNodeStatus(null);
+          setResearchStatus(null);
+          setFindings([]);
         }
         break;
 
@@ -164,6 +194,10 @@ export const Chat: React.FC = () => {
         console.error('SSE Error:', event.error);
         alert('오류가 발생했습니다: ' + event.error);
         setStreamingContent('');
+        // 에러 시 스트리밍 관련 상태 초기화
+        setNodeStatus(null);
+        setResearchStatus(null);
+        setFindings([]);
         break;
 
       default:
@@ -194,6 +228,9 @@ export const Chat: React.FC = () => {
 
     // 스트리밍 초기화
     setStreamingContent('');
+    setNodeStatus(null);
+    setResearchStatus(null);
+    setFindings([]);
 
     // SSE 요청 바디 구성
     const requestBody: any = {
@@ -233,6 +270,9 @@ export const Chat: React.FC = () => {
               messages={messages}
               streamingContent={streamingContent}
               isStreaming={isStreaming}
+              nodeStatus={nodeStatus}
+              researchStatus={researchStatus}
+              findings={findings}
             />
           </div>
         )}
