@@ -921,9 +921,13 @@ main {
     }
 }
 
-/* 조사 내용 토글 스타일 - 숨김 처리 */
+/* 조사 내용 토글 스타일 */
 .research-findings-container {
-    display: none;
+    margin: 2em 0 1em 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    width: 100%;
 }
 
 .research-findings-header {
@@ -931,13 +935,13 @@ main {
 }
 
 .research-findings-toggle {
-    background: none;
+    background: transparent;
     border: none;
-    padding: 6px 8px;
+    padding: 8px 0;
     cursor: pointer;
-    font-size: 0.85em;
-    font-weight: 600;
-    color: #667eea;
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #999;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -947,7 +951,7 @@ main {
 }
 
 .research-findings-toggle:hover {
-    color: #764ba2;
+    color: #667eea;
 }
 
 .toggle-icon {
@@ -956,7 +960,7 @@ main {
 }
 
 .findings-count {
-    color: #666;
+    color: #999;
     font-weight: normal;
     font-size: 0.9em;
 }
@@ -1021,142 +1025,7 @@ main {
 .finding-result {
     margin-bottom: 12px;
     padding: 8px;
-    background: #f8f9fa;
-    border-radius: 4px;
-}
-
-.finding-result:last-child {
-    margin-bottom: 0;
-}
-
-.result-title {
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 4px;
-}
-
-.result-url {
-    margin-bottom: 4px;
-    font-size: 0.9em;
-}
-
-.result-url a {
-    color: #667eea;
-    text-decoration: none;
-    word-break: break-all;
-}
-
-.result-url a:hover {
-    text-decoration: underline;
-}
-
-.result-content {
-    color: #666;
-    line-height: 1.5;
-    margin-top: 4px;
-}
-
-/* 조사 내용 토글 스타일 - 숨김 처리 */
-.research-findings-container {
-    display: none;
-}
-
-.research-findings-header {
-    margin-bottom: 0;
-}
-
-.research-findings-toggle {
-    background: none;
-    border: none;
-    padding: 6px 8px;
-    cursor: pointer;
-    font-size: 0.85em;
-    font-weight: 600;
-    color: #667eea;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    text-align: left;
-    transition: color 0.2s;
-}
-
-.research-findings-toggle:hover {
-    color: #764ba2;
-}
-
-.toggle-icon {
-    font-size: 0.8em;
-    transition: transform 0.2s;
-}
-
-.findings-count {
-    color: #666;
-    font-weight: normal;
-    font-size: 0.9em;
-}
-
-.research-findings-content {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #e0e0e0;
-}
-
-.finding-item {
-    margin-bottom: 16px;
-    padding: 12px;
     background: white;
-    border-radius: 6px;
-    border: 1px solid #e0e0e0;
-}
-
-.finding-item.finding-summary {
-    background: #f0f4ff;
-    border-left: 3px solid #667eea;
-}
-
-.finding-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    font-weight: 600;
-    font-size: 0.9em;
-    color: #333;
-}
-
-.finding-number {
-    background: #667eea;
-    color: white;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8em;
-    flex-shrink: 0;
-}
-
-.finding-query {
-    flex: 1;
-    color: #333;
-}
-
-.finding-tool-type {
-    font-size: 1.1em;
-}
-
-.finding-content {
-    font-size: 0.85em;
-    color: #666;
-    line-height: 1.6;
-}
-
-.finding-result {
-    margin-bottom: 12px;
-    padding: 8px;
-    background: #f8f9fa;
     border-radius: 4px;
 }
 
@@ -1190,7 +1059,6 @@ main {
     line-height: 1.5;
     margin-top: 4px;
 }
-
 
 /* Mermaid 다이어그램 스타일 */
 .message-text .mermaid {
