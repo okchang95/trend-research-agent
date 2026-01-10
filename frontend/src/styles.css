@@ -468,7 +468,7 @@ main {
 /* 중지 버튼 스타일 */
 .stop-btn {
     padding: 15px 30px;
-    background: #dc3545;
+    background: linear-gradient(135deg, #8a93c7 0%, #9479ab 100%);
     color: white;
     border: none;
     border-radius: 8px;
@@ -483,9 +483,9 @@ main {
 }
 
 .stop-btn:hover {
-    background: #c82333;
+    background: linear-gradient(135deg, #7a83b7 0%, #84699b 100%);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+    box-shadow: 0 4px 12px rgba(138, 147, 199, 0.4);
 }
 
 .stop-btn:active {
