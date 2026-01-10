@@ -25,23 +25,30 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMessageRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
-  // 사용자가 스크롤 위치를 변경했는지 감지 (window 스크롤 감지)
+  // 메시지 컨테이너의 스크롤 위치 감지
   const handleScroll = () => {
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = window.innerHeight;
+    if (!messagesContainerRef.current) return;
+    
+    const container = messagesContainerRef.current;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
-    // 하단에서 30px 이내면 자동 스크롤 활성화, 그렇지 않으면 비활성화
-    setShouldAutoScroll(distanceFromBottom < 30);
+    // 하단에서 50px 이내면 자동 스크롤 활성화, 그렇지 않으면 비활성화
+    setShouldAutoScroll(distanceFromBottom < 50);
   };
 
-  // 스크롤 이벤트 리스너 등록 (window 레벨)
+  // 스크롤 이벤트 리스너 등록 (컨테이너 레벨)
   useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   // 새 메시지가 추가되면 스크롤을 맨 아래로 (사용자가 하단에 있을 때만)
@@ -50,6 +57,32 @@ export const MessageList: React.FC<MessageListProps> = ({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, streamingContent, nodeStatus, researchStatus, findings, shouldAutoScroll]);
+
+  // 키보드가 열릴 때 스크롤을 하단으로 유지
+  useEffect(() => {
+    const handleResize = () => {
+      // 키보드가 열리거나 닫힐 때 (viewport height 변경)
+      if (shouldAutoScroll && messagesEndRef.current) {
+        // 약간의 지연을 두어 레이아웃이 완료된 후 스크롤
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // visualViewport API 사용 (모바일 키보드 감지)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+    };
+  }, [shouldAutoScroll]);
 
   // 스트리밍 메시지의 마크다운 렌더링
   useEffect(() => {
@@ -86,7 +119,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   };
 
   return (
-    <div className="messages-container">
+    <div className="messages-container" ref={messagesContainerRef}>
       {messages.map((msg, index) => (
         <div key={index}>
           <Message role={msg.role} content={msg.message} />

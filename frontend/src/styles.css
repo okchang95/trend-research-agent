@@ -1182,15 +1182,23 @@ main {
   /* 메인 콘텐츠 마진 제거 및 패딩 조정 */
   main {
     margin-left: 0;
-    padding: 20px 15px;
-    padding-bottom: 80px; /* 입력창 공간 확보 */
+    padding: 0;
+    padding-bottom: 0;
     min-height: 100vh;
     min-height: 100dvh; /* 동적 viewport height 지원 - 키보드 올라올 때 자동 조정 */
+    position: relative;
+    overflow: hidden;
   }
 
-  /* 채팅 섹션 최대 너비 제거 */
+  /* 채팅 섹션 최대 너비 제거 및 위치 조정 */
   .chat-section {
     max-width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 80px; /* 입력창 높이만큼 하단에서 떨어뜨림 */
+    overflow: hidden;
   }
 
   /* 메시지 컨테이너를 flexbox로 변경하고 하단 정렬 */
@@ -1198,11 +1206,12 @@ main {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    min-height: calc(100dvh - 160px); /* 동적 viewport height에서 입력창 높이 제외 */
+    height: 100%; /* 부모 높이 전체 사용 */
     padding: 15px 10px;
     padding-bottom: 20px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* 메시지가 적을 때는 하단에 붙고, 많을 때는 위로 스크롤 */
   }
 
   /* 입력창 위치 조정 - 하단 고정, 키보드 위로 올라가도록 */
@@ -1230,11 +1239,17 @@ main {
 
   /* 인트로 섹션 패딩 조정 */
   .intro-section {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 80px; /* 입력창 높이만큼 하단에서 떨어뜨림 */
     padding: 20px 15px;
-    min-height: calc(100dvh - 80px); /* 동적 viewport height에서 입력창 높이 제외 */
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* 인트로 제목 크기 조정 */
