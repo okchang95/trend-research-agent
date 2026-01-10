@@ -106,144 +106,32 @@ class ChatService:
         self.agent_runner = AgentRunner()
         self._repo_chat_message = _repo_chat_message
         self._repo_chat_thread = _repo_chat_thread
-        # Task 저장소: thread_id -> asyncio.Task
-        self._active_tasks: dict[str, asyncio.Task] = {}
+        # Task 저장소: thread_id -> (asyncio.Task, asyncio.Event)
+        self._active_tasks: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
 
     async def stream_conversation(self, payload: ChatRequest) -> AsyncIterator[Dict]:
         """
         SSE를 위한 스트리밍 대화
-        각 노드의 실행 결과와 최종 텍스트를 스트리밍으로 전송
 
-        Sequence:
-        - 메세지 타이핑 후 "전송"버튼 클릭 시,
-        1) thread 조회(대화내역 포함), 없으면 생성
-        2) 메세지 저장 (user_message)
-        3) 제목 생성 (if first message)
-        4) last_summarized_at 이후의 메세지 조회 (short term memory)
-        5) 에이전트 실행
-        6) 메세지 저장 (assistant_message)
-        7) 대화 요약 업데이트 (thread conversation_summary)
-        8) thread title update (if report generated)
+        전체 conversation flow를 백그라운드에서 실행하여
+        SSE 연결이 언제 끊겨도 (Thread 생성, User 메시지 저장, Agent 실행, Assistant 메시지 저장)
+        모든 단계가 완료될 수 있도록 보장
         """
-        user_id = payload.user_id
-        thread_id = payload.thread_id
-        user_message = payload.user_message
-        requested_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
-
-        logger.info(f"Received request for user_id: {user_id}")
-
-        # --------------------------------------------------------------------------------------------
-        # 1. 스레드 조회
-        # --------------------------------------------------------------------------------------------
-        is_new_thread = False
-
-        if not thread_id:
-            is_new_thread = True
-            thread = ChatThread(
-                user_id=user_id,
-                title="New Thread",
-                created_at=requested_at,
-                updated_at=requested_at,
-            ).model_dump()
-            thread["user_id"] = ObjectId(user_id)
-            thread_id = await self._repo_chat_thread.create(thread)
-            thread["_id"] = thread_id
-        else:
-            thread = await self._repo_chat_thread.get_by_oid(thread_id)
-
-        # 스레드 ID 전송
-        yield {
-            "type": "thread",
-            "thread_id": thread_id,
-            "title": thread.get("title", "New Thread"),
-        }
-
-        # --------------------------------------------------------------------------------------------
-        # 2. 메세지 저장 (user_message)
-        # --------------------------------------------------------------------------------------------
-        user_message_obj = ChatMessage(
-            thread_id=thread_id,
-            role=MessageRole.USER,
-            ended_node=None,
-            message=user_message,
-            timestamp=requested_at,
-        )
-        user_message_obj = user_message_obj.model_dump()
-        user_message_obj["thread_id"] = ObjectId(thread_id)
-        await self._repo_chat_message.create(user_message_obj)
-
-        # --------------------------------------------------------------------------------------------
-        # 3. 제목 생성 (if first message)
-        # --------------------------------------------------------------------------------------------
-        # 첫 메시지인 경우 user_message만으로 제목 생성 (agent 실행 전)
-        if is_new_thread:
-            thread_title = await self._generate_thread_title(
-                [{"role": "user", "message": user_message}]
-            )
-            await self._repo_chat_thread.update(
-                thread_id,
-                {"title": thread_title, "updated_at": requested_at},
-            )
-            yield {
-                "type": "thread",
-                "thread_id": thread_id,
-                "title": thread_title,
-            }
-        # --------------------------------------------------------------------------------------------
-        # 4. last_summarized_at 이후의 메세지 조회 (short term memory)
-        # --------------------------------------------------------------------------------------------
-        unsummarized_messages = (
-            await self._repo_chat_message.get_unsummarized_by_thread_id(
-                thread_id=thread_id,
-                last_summarized_at=thread.get("last_summarized_at"),
-            )
-        )
-        # report_summary가 있고 ended_node가 writer인 경우 report_summary를 사용, 아니면 message를 사용
-        unsummarized_messages = (
-            [
-                {
-                    "role": msg["role"],
-                    "message": (
-                        msg.get("report_summary")
-                        if msg.get("report_summary")
-                        and msg.get("ended_node") == "writer"
-                        else msg.get("message", "")
-                    ),
-                    "timestamp": msg["timestamp"],
-                }
-                for msg in unsummarized_messages
-            ]
-            if unsummarized_messages
-            else []
-        )
-
-        conversations_summary = thread.get("conversation_summary", "")
-
-        # --------------------------------------------------------------------------------------------
-        # 5. 에이전트 실행 (비동기 + 큐 패턴)
-        # --------------------------------------------------------------------------------------------
-        # Thread 상태를 GENERATING으로 변경
-        await self._repo_chat_thread.update(
-            thread_id,
-            {"status": ThreadStatus.GENERATING, "updated_at": requested_at},
-        )
+        logger.info(f"Received request for user_id: {payload.user_id}")
 
         # 이벤트를 공유할 Queue
         event_queue = asyncio.Queue()
+        # 취소 이벤트 (중지 버튼용)
+        cancel_event = asyncio.Event()
 
-        # 백그라운드에서 agent 실행 (이벤트를 queue에 넣고 + DB에 저장)
+        # 전체 conversation flow를 백그라운드에서 실행
         background_task = asyncio.create_task(
-            self._run_agent_and_save(
-                thread_id=thread_id,
-                user_message=user_message,
-                unsummarized_messages=unsummarized_messages,
-                conversations_summary=conversations_summary,
+            self._execute_conversation_flow(
+                payload=payload,
                 event_queue=event_queue,
+                cancel_event=cancel_event,
             )
         )
-
-        # Task 등록 (중지 기능을 위해)
-        self._active_tasks[thread_id] = background_task
 
         try:
             # Queue에서 이벤트를 읽어서 SSE로 전송
@@ -260,7 +148,7 @@ class ChatService:
             # 클라이언트 연결 끊김 (새로고침, 페이지 이탈 등)
             # background_task는 계속 실행되어 DB에 저장
             logger.info(
-                f"Client disconnected, but agent continues in background for thread {thread_id}"
+                "Client disconnected, but conversation flow continues in background"
             )
             raise
 
@@ -274,45 +162,161 @@ class ChatService:
         finally:
             # Task가 아직 실행 중이면 완료 대기는 하지 않음 (백그라운드에서 계속 실행)
             if not background_task.done():
-                logger.info(
-                    f"Background task continues for thread {thread_id} (client disconnected)"
-                )
+                logger.info("Background task continues (client disconnected)")
             else:
-                # Task가 완료되었으면 예외 확인 및 제거
+                # Task가 완료되었으면 예외 확인
                 try:
                     await background_task
                 except Exception as task_error:
                     logger.error(f"Background task error: {task_error}")
-                finally:
-                    # Task 제거
-                    self._active_tasks.pop(thread_id, None)
 
-    async def _run_agent_and_save(
+    async def _execute_conversation_flow(
         self,
-        thread_id: str,
-        user_message: str,
-        unsummarized_messages: list,
-        conversations_summary: str,
+        payload: ChatRequest,
         event_queue: asyncio.Queue,
+        cancel_event: asyncio.Event,
     ):
         """
-        백그라운드에서 실행되는 agent
-        - Agent를 한 번만 실행
-        - 각 이벤트를 queue에 넣음 (SSE streaming용)
-        - 최종 결과를 DB에 저장 (연결 끊겨도 실행)
+        전체 대화 플로우 실행 (백그라운드)
+
+        Sequence:
+        1) thread 조회(대화내역 포함), 없으면 생성
+        2) 메세지 저장 (user_message)
+        3) 제목 생성 (if first message)
+        4) last_summarized_at 이후의 메세지 조회 (short term memory)
+        5) 에이전트 실행
+        6) 메세지 저장 (assistant_message)
+        7) 대화 요약 업데이트 (thread conversation_summary)
+        8) thread title update (if report generated)
         """
-        final_answer = None
-        current_node = None
-        findings = None
-        report_summary = None
+        user_id = payload.user_id
+        thread_id = payload.thread_id
+        user_message = payload.user_message
+        requested_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
 
         try:
-            # Agent는 딱 한 번만 실행!
+            # --------------------------------------------------------------------------------------------
+            # 1. 스레드 조회/생성
+            # --------------------------------------------------------------------------------------------
+            is_new_thread = False
+
+            if not thread_id:
+                is_new_thread = True
+                thread = ChatThread(
+                    user_id=user_id,
+                    title="New Thread",
+                    created_at=requested_at,
+                    updated_at=requested_at,
+                ).model_dump()
+                thread["user_id"] = ObjectId(user_id)
+                thread_id = await self._repo_chat_thread.create(thread)
+                thread["_id"] = thread_id
+            else:
+                thread = await self._repo_chat_thread.get_by_oid(thread_id)
+
+            # 스레드 ID 전송
+            await event_queue.put(
+                {
+                    "type": "thread",
+                    "thread_id": thread_id,
+                    "title": thread.get("title", "New Thread"),
+                }
+            )
+
+            # --------------------------------------------------------------------------------------------
+            # 2. 메세지 저장 (user_message)
+            # --------------------------------------------------------------------------------------------
+            user_message_obj = ChatMessage(
+                thread_id=thread_id,
+                role=MessageRole.USER,
+                ended_node=None,
+                message=user_message,
+                timestamp=requested_at,
+            )
+            user_message_obj = user_message_obj.model_dump()
+            user_message_obj["thread_id"] = ObjectId(thread_id)
+            await self._repo_chat_message.create(user_message_obj)
+
+            # --------------------------------------------------------------------------------------------
+            # 3. 제목 생성 (if first message)
+            # --------------------------------------------------------------------------------------------
+            if is_new_thread:
+                thread_title = await self._generate_thread_title(
+                    [{"role": "user", "message": user_message}]
+                )
+                await self._repo_chat_thread.update(
+                    thread_id,
+                    {"title": thread_title, "updated_at": requested_at},
+                )
+                await event_queue.put(
+                    {
+                        "type": "thread",
+                        "thread_id": thread_id,
+                        "title": thread_title,
+                    }
+                )
+
+            # --------------------------------------------------------------------------------------------
+            # 4. last_summarized_at 이후의 메세지 조회 (short term memory)
+            # --------------------------------------------------------------------------------------------
+            unsummarized_messages = (
+                await self._repo_chat_message.get_unsummarized_by_thread_id(
+                    thread_id=thread_id,
+                    last_summarized_at=thread.get("last_summarized_at"),
+                )
+            )
+            unsummarized_messages = (
+                [
+                    {
+                        "role": msg["role"],
+                        "message": (
+                            msg.get("report_summary")
+                            if msg.get("report_summary")
+                            and msg.get("ended_node") == "writer"
+                            else msg.get("message", "")
+                        ),
+                        "timestamp": msg["timestamp"],
+                    }
+                    for msg in unsummarized_messages
+                ]
+                if unsummarized_messages
+                else []
+            )
+
+            conversations_summary = thread.get("conversation_summary", "")
+
+            # --------------------------------------------------------------------------------------------
+            # 5. Thread Status를 GENERATING으로 변경 & Task 등록
+            # --------------------------------------------------------------------------------------------
+            await self._repo_chat_thread.update(
+                thread_id,
+                {"status": ThreadStatus.GENERATING, "updated_at": requested_at},
+            )
+
+            # 현재 실행 중인 task 등록 (중지 기능을 위해)
+            current_task = asyncio.current_task()
+            self._active_tasks[thread_id] = (current_task, cancel_event)
+
+            # --------------------------------------------------------------------------------------------
+            # 6. 에이전트 실행
+            # --------------------------------------------------------------------------------------------
+            final_answer = None
+            current_node = None
+            findings = None
+            report_summary = None
+
+            # Agent 실행
             async for event in self.agent_runner.stream(
                 user_message=user_message,
                 conversations=unsummarized_messages,
                 conversations_summary=conversations_summary,
+                cancel_event=cancel_event,
             ):
+                # 취소 체크 (중지 버튼)
+                if cancel_event.is_set():
+                    logger.info(f"Cancellation requested for thread {thread_id}")
+                    break
+
                 # 이벤트를 queue에 넣음 (SSE로 전송될 수 있도록)
                 try:
                     await event_queue.put(event)
@@ -327,12 +331,39 @@ class ChatService:
                     current_node = state.get("current_node", "")
                     findings = state.get("findings", None)
 
-            # 종료 신호 전송
-            await event_queue.put(None)
+            # --------------------------------------------------------------------------------------------
+            # 7. DB에 저장 (연결 끊겨도 실행됨!)
+            # --------------------------------------------------------------------------------------------
+            if cancel_event.is_set():
+                # 중지 버튼으로 취소됨 - "[응답이 중지되었습니다]" 메시지 저장
+                logger.info(
+                    f"Agent was cancelled, saving cancellation message for thread {thread_id}"
+                )
 
-            # --------------------------------------------------------------------------------------------
-            # DB에 저장 (연결 끊겨도 실행됨!)
-            # --------------------------------------------------------------------------------------------
+                generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
+                cancelled_message = "**[응답이 중지되었습니다]**"
+
+                # Assistant 메시지 저장
+                assistant_message_obj = ChatMessage(
+                    thread_id=thread_id,
+                    role=MessageRole.ASSISTANT,
+                    ended_node="cancelled",
+                    message=cancelled_message,
+                    timestamp=generated_at,
+                )
+                assistant_message_obj = assistant_message_obj.model_dump()
+                assistant_message_obj["thread_id"] = ObjectId(thread_id)
+                await self._repo_chat_message.create(assistant_message_obj)
+
+                # Thread status를 IDLE로
+                await self._repo_chat_thread.update(
+                    thread_id,
+                    {"status": ThreadStatus.IDLE, "updated_at": generated_at},
+                )
+
+                logger.info(f"Cancellation message saved for thread {thread_id}")
+                return
+
             if final_answer:
                 generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
 
@@ -450,13 +481,7 @@ class ChatService:
 
         except asyncio.CancelledError:
             # Task가 취소됨 (중지 버튼)
-            logger.info(f"Agent task cancelled for thread {thread_id}")
-
-            # 종료 신호 전송
-            try:
-                await event_queue.put(None)
-            except Exception:
-                pass
+            logger.info(f"Conversation flow cancelled for thread {thread_id}")
 
             # Thread를 IDLE로 변경
             await self._repo_chat_thread.update(
@@ -464,15 +489,18 @@ class ChatService:
                 {"status": ThreadStatus.IDLE},
             )
 
-            # Task 제거
-            # (이미 취소되었으므로 _active_tasks에서 제거 - cancel_stream에서 처리)
-
-            raise  # CancelledError는 재발생시켜야 함
+            raise
 
         except Exception as e:
-            logger.error(f"Background agent error for thread {thread_id}: {e}")
+            logger.error(f"Conversation flow error: {e}")
 
-            # 에러 신호 전송
+            # Thread status를 ERROR로
+            await self._repo_chat_thread.update(
+                thread_id,
+                {"status": ThreadStatus.ERROR},
+            )
+
+            # 에러 이벤트 전송
             try:
                 await event_queue.put(
                     {
@@ -480,15 +508,20 @@ class ChatService:
                         "error": str(e),
                     }
                 )
+            except Exception:
+                pass
+
+            raise
+
+        finally:
+            # 종료 신호 전송
+            try:
                 await event_queue.put(None)
             except Exception:
-                pass  # Queue 에러 무시
+                pass
 
-            # Thread status를 ERROR로
-            await self._repo_chat_thread.update(
-                thread_id,
-                {"status": ThreadStatus.ERROR},
-            )
+            # Task 제거
+            self._active_tasks.pop(thread_id, None)
 
     ############################################################################################
     #
@@ -628,32 +661,52 @@ class ChatService:
     async def cancel_stream(self, thread_id: str) -> bool:
         """
         진행 중인 agent task를 취소
-        
+
         Args:
             thread_id: 취소할 thread의 ID
-            
+
         Returns:
             bool: Task가 취소되었으면 True, 실행 중인 task가 없으면 False
         """
-        task = self._active_tasks.get(thread_id)
+        task_info = self._active_tasks.get(thread_id)
 
-        if task and not task.done():
-            # Task 취소
-            task.cancel()
-            logger.info(f"Cancelled background task for thread {thread_id}")
+        if task_info:
+            background_task, cancel_event = task_info
 
-            # Task 제거
-            self._active_tasks.pop(thread_id, None)
+            if not background_task.done():
+                logger.info(f"Cancelling background task for thread {thread_id}")
 
-            # Thread status를 IDLE로 변경 (CancelledError 핸들러에서도 처리하지만 여기서도 보장)
-            try:
-                await self._repo_chat_thread.update(
-                    thread_id,
-                    {"status": ThreadStatus.IDLE},
-                )
-            except Exception as e:
-                logger.error(f"Failed to update thread status: {e}")
+                # 1. 먼저 cancel_event 설정 (graceful shutdown)
+                cancel_event.set()
 
-            return True
+                # 2. 약간 대기 (Agent가 취소를 감지하고 정리할 시간)
+                try:
+                    await asyncio.wait_for(asyncio.shield(background_task), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # 3. 1초 내에 끝나지 않으면 강제 취소
+                    logger.warning(
+                        f"Task did not finish gracefully, forcing cancellation for thread {thread_id}"
+                    )
+                    background_task.cancel()
+                    try:
+                        await background_task
+                    except asyncio.CancelledError:
+                        pass
+                except Exception as e:
+                    logger.error(f"Error during task cancellation: {e}")
+
+                # Task 제거
+                self._active_tasks.pop(thread_id, None)
+
+                # Thread status를 IDLE로 변경
+                try:
+                    await self._repo_chat_thread.update(
+                        thread_id,
+                        {"status": ThreadStatus.IDLE},
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to update thread status: {e}")
+
+                return True
 
         return False

@@ -237,11 +237,11 @@ export const Chat: React.FC = () => {
     cancelStream();
     
     const threadId = currentThreadIdRef.current;
-    const partialContent = currentStreamingContentRef.current;
     
     if (threadId && userId) {
       try {
-        // 1. 백그라운드 task 취소 (agent 실행 중지)
+        // 백그라운드 task 취소 (agent 실행 중지)
+        // Backend에서 자동으로 "[응답이 중지되었습니다]" 메시지 저장
         await fetch(`${API_BASE_URL}/api/chat/cancel-task`, {
           method: 'POST',
           headers: {
@@ -249,19 +249,6 @@ export const Chat: React.FC = () => {
           },
           body: JSON.stringify({
             thread_id: threadId,
-          }),
-        });
-        
-        // 2. "응답 중지됨" 메시지 저장
-        await fetch(`${API_BASE_URL}/api/chat/cancel`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            thread_id: threadId,
-            user_id: userId,
-            partial_message: partialContent || '',
           }),
         });
         
