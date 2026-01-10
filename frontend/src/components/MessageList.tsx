@@ -59,11 +59,30 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [streamingContent, isStreaming]);
 
   const renderStreamingContent = () => {
-    if (!streamingContent) {
+    // 중간 상태가 하나라도 있으면 그것들을 표시
+    const hasIntermediateStatus = nodeStatus || researchStatus || findings.length > 0;
+    
+    if (!streamingContent && !hasIntermediateStatus) {
       return <div className="thinking-indicator">생각중...</div>;
     }
-    const html = processMarkdownWithMermaid(streamingContent);
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
+    
+    return (
+      <>
+        {nodeStatus && (
+          <NodeStatus nodeName={nodeStatus.name} status={nodeStatus.status} />
+        )}
+        {researchStatus && (
+          <ResearchStatus
+            message={researchStatus.message}
+            results={researchStatus.results}
+          />
+        )}
+        {findings.length > 0 && <ResearchFindings findings={findings} />}
+        {streamingContent && (
+          <div dangerouslySetInnerHTML={{ __html: processMarkdownWithMermaid(streamingContent) }} />
+        )}
+      </>
+    );
   };
 
   return (
@@ -74,16 +93,6 @@ export const MessageList: React.FC<MessageListProps> = ({
       {isStreaming && (
         <div className="message assistant-message">
           <div className="message-content">
-            {nodeStatus && (
-              <NodeStatus nodeName={nodeStatus.name} status={nodeStatus.status} />
-            )}
-            {researchStatus && (
-              <ResearchStatus
-                message={researchStatus.message}
-                results={researchStatus.results}
-              />
-            )}
-            {findings.length > 0 && <ResearchFindings findings={findings} />}
             <div className="message-text" ref={streamingMessageRef}>
               {renderStreamingContent()}
             </div>
