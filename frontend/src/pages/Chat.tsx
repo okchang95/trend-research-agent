@@ -323,6 +323,10 @@ export const Chat: React.FC = () => {
     }
   };
 
+  // 현재 thread의 generating 상태 확인
+  const currentThread = threads.find(t => t.thread_id === currentThreadId);
+  const isGenerating = currentThread?.status === 'generating';
+
   return (
     <>
       <Sidebar
@@ -353,7 +357,7 @@ export const Chat: React.FC = () => {
       <InputSection 
         onSend={handleSendMessage} 
         onStop={handleStopStream}
-        disabled={isStreaming}
+        disabled={isStreaming || isGenerating}
         isStreaming={isStreaming}
       />
     </>
