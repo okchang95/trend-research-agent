@@ -15,6 +15,8 @@ export const NodeStatus: React.FC<NodeStatusProps> = ({ nodeName, status }) => {
           return { icon: '📚', text: '자료 수집 중...' };
         case 'writer':
           return { icon: '✍️', text: '보고서 작성 중...' };
+        case 'generating':
+          return { icon: '⚙️', text: '응답 생성 중...' };
         default:
           return { icon: '⏳', text: `${name} 진행 중...` };
       }

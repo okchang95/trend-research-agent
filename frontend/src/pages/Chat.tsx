@@ -76,6 +76,17 @@ export const Chat: React.FC = () => {
     }
   }, [userId, loadThreadList, clearChat]);
 
+  // 현재 thread의 generating 상태 확인 (새로고침 시에도 작동)
+  useEffect(() => {
+    if (currentThreadId && threads.length > 0) {
+      const currentThread = threads.find(t => t.thread_id === currentThreadId);
+      if (currentThread?.status === 'generating') {
+        setStreamingContent('응답 생성 중입니다...');
+        setNodeStatus({ name: 'generating', status: 'in_progress' });
+      }
+    }
+  }, [currentThreadId, threads]);
+
   // Thread 선택 시 메시지 로드
   const handleThreadSelect = async (threadId: string) => {
     try {
@@ -95,8 +106,8 @@ export const Chat: React.FC = () => {
       const selectedThread = threads.find(t => t.thread_id === threadId);
       if (selectedThread?.status === 'generating') {
         // 응답 생성 중인 thread를 선택한 경우
-        setStreamingContent('응답 생성이 진행 중입니다. 잠시만 기다려주세요...');
-        setNodeStatus({ name: 'unknown', status: 'in_progress' });
+        setStreamingContent('응답 생성 중입니다...');
+        setNodeStatus({ name: 'generating', status: 'in_progress' });
       } else {
         // 스트리밍 상태 초기화
         setStreamingContent('');
