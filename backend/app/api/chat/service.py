@@ -150,6 +150,20 @@ class ChatService:
             "title": thread.get("title", "New Thread"),
         }
 
+        # 첫 메시지인 경우 user_message만으로 제목 생성 (agent 실행 전)
+        if is_new_thread:
+            thread_title = await self._generate_thread_title(
+                [{"role": "user", "message": user_message}]
+            )
+            await self._repo_chat_thread.update(
+                thread_id,
+                {"title": thread_title, "updated_at": requested_at},
+            )
+            yield {
+                "type": "thread",
+                "thread_id": thread_id,
+                "title": thread_title,
+            }
         # --------------------------------------------------------------------------------------------
         # 2. last_summarized_at 이후의 메세지 조회 (short term memory)
         # --------------------------------------------------------------------------------------------
@@ -287,18 +301,12 @@ class ChatService:
             )
 
         # --------------------------------------------------------------------------------------------
-        # 6. thread title update (if first message, update title)
+        # 6. thread title update (if report generated)
         # --------------------------------------------------------------------------------------------
-        conversations = []
-
-        # 첫 메세지인 경우 스레드 제목 생성
-        if is_new_thread:
-            conversations = [
-                {"role": "user", "message": user_message},
-                {"role": "assistant", "message": final_answer},
-            ]
         # 보고서 작성 완료 후 스레드 제목 업데이트
-        elif current_node == "writer":
+        if current_node == "writer":
+            conversations = []
+
             # unsummarized_messages가 있으면 포함
             conversations = (
                 [
@@ -323,7 +331,6 @@ class ChatService:
                 ]
             )
 
-        if conversations:
             thread_title = await self._generate_thread_title(conversations)
             await self._repo_chat_thread.update(
                 thread_id,
