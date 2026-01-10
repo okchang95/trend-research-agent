@@ -223,6 +223,8 @@ export const Chat: React.FC = () => {
           setNodeStatus(null);
           setResearchStatus(null);
           setFindings([]);
+          // Thread 목록 새로고침 (status를 'completed'로 업데이트)
+          loadThreadList();
         }
         break;
 
@@ -235,6 +237,8 @@ export const Chat: React.FC = () => {
         setNodeStatus(null);
         setResearchStatus(null);
         setFindings([]);
+        // Thread 목록 새로고침 (status를 'error'로 업데이트)
+        loadThreadList();
         break;
 
       default:
