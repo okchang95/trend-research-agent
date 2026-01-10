@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Thread } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,11 +19,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { userName, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // 리사이즈 이벤트 감지
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // 모바일로 전환되면 사이드바 닫기
+      if (mobile && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // 초기 상태 설정
+    handleResize();
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isOpen]);
 
   const handleGoHome = () => {
     onGoHome();
     // 모바일에서는 사이드바 닫기
-    if (window.innerWidth <= 768) {
+    if (isMobile) {
       closeSidebar();
     }
   };
@@ -45,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleThreadClick = (threadId: string) => {
     onThreadSelect(threadId);
     // 모바일에서는 사이드바 닫기
-    if (window.innerWidth <= 768) {
+    if (isMobile) {
       closeSidebar();
     }
   };
@@ -53,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleNewThread = () => {
     onNewThread();
     // 모바일에서는 사이드바 닫기
-    if (window.innerWidth <= 768) {
+    if (isMobile) {
       closeSidebar();
     }
   };
@@ -66,7 +85,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`menu-toggle ${isOpen ? 'active' : ''}`}
         onClick={toggleSidebar}
         aria-label="메뉴 열기"
-        style={{ display: window.innerWidth <= 768 ? 'flex' : 'none' }}
       >
         <span></span>
         <span></span>
@@ -81,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ></div>
 
       {/* 사이드바 */}
-      <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
+      <aside className={`sidebar ${isOpen || !isMobile ? 'open' : ''}`} id="sidebar">
         <div className="sidebar-header">
           <h1 
             onClick={handleGoHome}
