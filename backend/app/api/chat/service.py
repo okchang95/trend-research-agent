@@ -106,6 +106,8 @@ class ChatService:
         self.agent_runner = AgentRunner()
         self._repo_chat_message = _repo_chat_message
         self._repo_chat_thread = _repo_chat_thread
+        # Task 저장소: thread_id -> asyncio.Task
+        self._active_tasks: dict[str, asyncio.Task] = {}
 
     async def stream_conversation(self, payload: ChatRequest) -> AsyncIterator[Dict]:
         """
@@ -240,6 +242,9 @@ class ChatService:
             )
         )
 
+        # Task 등록 (중지 기능을 위해)
+        self._active_tasks[thread_id] = background_task
+
         try:
             # Queue에서 이벤트를 읽어서 SSE로 전송
             while True:
@@ -273,11 +278,14 @@ class ChatService:
                     f"Background task continues for thread {thread_id} (client disconnected)"
                 )
             else:
-                # Task가 완료되었으면 예외 확인
+                # Task가 완료되었으면 예외 확인 및 제거
                 try:
                     await background_task
                 except Exception as task_error:
                     logger.error(f"Background task error: {task_error}")
+                finally:
+                    # Task 제거
+                    self._active_tasks.pop(thread_id, None)
 
     async def _run_agent_and_save(
         self,
@@ -440,6 +448,27 @@ class ChatService:
                     f"Agent did not reach final state for thread {thread_id}"
                 )
 
+        except asyncio.CancelledError:
+            # Task가 취소됨 (중지 버튼)
+            logger.info(f"Agent task cancelled for thread {thread_id}")
+
+            # 종료 신호 전송
+            try:
+                await event_queue.put(None)
+            except Exception:
+                pass
+
+            # Thread를 IDLE로 변경
+            await self._repo_chat_thread.update(
+                thread_id,
+                {"status": ThreadStatus.IDLE},
+            )
+
+            # Task 제거
+            # (이미 취소되었으므로 _active_tasks에서 제거 - cancel_stream에서 처리)
+
+            raise  # CancelledError는 재발생시켜야 함
+
         except Exception as e:
             logger.error(f"Background agent error for thread {thread_id}: {e}")
 
@@ -595,3 +624,36 @@ class ChatService:
             "message_id": str(message_id),
             "thread_id": thread_id,
         }
+
+    async def cancel_stream(self, thread_id: str) -> bool:
+        """
+        진행 중인 agent task를 취소
+        
+        Args:
+            thread_id: 취소할 thread의 ID
+            
+        Returns:
+            bool: Task가 취소되었으면 True, 실행 중인 task가 없으면 False
+        """
+        task = self._active_tasks.get(thread_id)
+
+        if task and not task.done():
+            # Task 취소
+            task.cancel()
+            logger.info(f"Cancelled background task for thread {thread_id}")
+
+            # Task 제거
+            self._active_tasks.pop(thread_id, None)
+
+            # Thread status를 IDLE로 변경 (CancelledError 핸들러에서도 처리하지만 여기서도 보장)
+            try:
+                await self._repo_chat_thread.update(
+                    thread_id,
+                    {"status": ThreadStatus.IDLE},
+                )
+            except Exception as e:
+                logger.error(f"Failed to update thread status: {e}")
+
+            return True
+
+        return False

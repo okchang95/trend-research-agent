@@ -60,6 +60,37 @@ async def cancel_chat(
         return ErrorResponse.fail_response(message=str(e))
 
 
+@router.post("/chat/cancel-task")
+async def cancel_task(
+    payload: dict,
+    service: ChatService = Depends(get_chat_service),
+):
+    """
+    진행 중인 백그라운드 agent task 취소
+    """
+    try:
+        thread_id = payload.get("thread_id")
+        if not thread_id:
+            return CommonResponse.fail_response(message="thread_id required")
+
+        cancelled = await service.cancel_stream(thread_id)
+
+        if cancelled:
+            return CommonResponse.success_response(
+                message="Task cancelled successfully",
+                data={"thread_id": thread_id},
+            )
+        else:
+            return CommonResponse.success_response(
+                message="No active task found",
+                data={"thread_id": thread_id},
+            )
+    except HTTPException as e:
+        return CommonResponse.fail_response(message=e.detail)
+    except Exception as e:
+        return ErrorResponse.fail_response(message=str(e))
+
+
 ############################################################
 #
 # Threads Controllers
