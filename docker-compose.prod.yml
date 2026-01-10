@@ -1,3 +1,6 @@
+# 프로덕션용 docker-compose (React 빌드 포함)
+# 사용법: docker-compose -f docker-compose.prod.yml up --build
+
 services:
   backend:
     build:
@@ -36,7 +39,7 @@ services:
   nginx:
     build:
       context: .
-      dockerfile: nginx/Dockerfile
+      dockerfile: nginx/Dockerfile.prod
     container_name: research-agent-nginx
     restart: unless-stopped
     ports:
@@ -47,7 +50,7 @@ services:
     networks:
       - app-network
     volumes:
-      - ./frontend:/usr/share/nginx/html:ro
+      # 프로덕션: React 빌드는 Dockerfile 내부에서 수행되므로 볼륨 불필요
       - /etc/letsencrypt:/etc/letsencrypt:ro
 
 volumes:
@@ -56,4 +59,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-
