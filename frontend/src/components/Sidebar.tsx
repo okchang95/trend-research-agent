@@ -77,29 +77,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // 데스크탑에서는 항상 열림, 모바일에서는 토글 상태
+  const sidebarIsOpen = !isMobile || isOpen;
+
   return (
     <>
-      {/* 햄버거 메뉴 버튼 (모바일용) */}
-      <button
-        id="menuToggle"
-        className={`menu-toggle ${isOpen ? 'active' : ''}`}
-        onClick={toggleSidebar}
-        aria-label="메뉴 열기"
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-
       {/* 사이드바 오버레이 (모바일용) */}
       <div
         id="sidebarOverlay"
-        className={`sidebar-overlay ${isOpen ? 'active' : ''}`}
+        className={`sidebar-overlay ${isOpen && isMobile ? 'active' : ''}`}
         onClick={closeSidebar}
       ></div>
 
       {/* 사이드바 */}
-      <aside className={`sidebar ${isOpen || !isMobile ? 'open' : ''}`} id="sidebar">
+      <aside className={`sidebar ${sidebarIsOpen ? 'open' : 'closed'}`} id="sidebar">
+        {/* 사이드바 토글 버튼 */}
+        <button
+          className="sidebar-toggle"
+          onClick={toggleSidebar}
+          aria-label={sidebarIsOpen ? '사이드바 접기' : '사이드바 펼치기'}
+          title={sidebarIsOpen ? '사이드바 접기' : '사이드바 펼치기'}
+        >
+          {sidebarIsOpen ? '◀' : '▶'}
+        </button>
+
         <div className="sidebar-header">
           <h1 
             onClick={handleGoHome}
