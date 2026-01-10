@@ -4,36 +4,45 @@
     box-sizing: border-box;
 }
 
-/* 사이드바 토글 버튼 */
-.sidebar-toggle {
-    position: absolute;
-    top: 15px;
-    right: -15px;
-    width: 30px;
-    height: 30px;
+/* 작은 햄버거 메뉴 버튼 (모바일용, 기본 숨김) */
+.menu-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: 36px;
+    height: 36px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: 2px solid white;
-    border-radius: 50%;
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
+    border: none;
+    border-radius: 6px;
     cursor: pointer;
-    z-index: 101;
-    display: flex;
-    align-items: center;
+    z-index: 1001;
+    flex-direction: column;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s, box-shadow 0.2s;
-    line-height: 1;
+    align-items: center;
+    gap: 4px;
+    padding: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-.sidebar-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+.menu-toggle span {
+    width: 18px;
+    height: 2px;
+    background: white;
+    border-radius: 2px;
+    transition: all 0.3s ease;
 }
 
-.sidebar-toggle:active {
-    transform: scale(0.95);
+.menu-toggle.active span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.menu-toggle.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.menu-toggle.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -5px);
 }
 
 /* 사이드바 오버레이 (모바일용, 기본 숨김) */
@@ -1144,6 +1153,11 @@ main {
    모바일 반응형 스타일 (768px 이하)
    ============================================ */
 @media (max-width: 768px) {
+  /* 작은 햄버거 메뉴 버튼 표시 */
+  .menu-toggle {
+    display: flex !important;
+  }
+
   /* 사이드바 기본적으로 숨김 (왼쪽으로 밀어냄) */
   .sidebar {
     transform: translateX(-100%);
@@ -1153,14 +1167,6 @@ main {
   /* 사이드바 열림 상태 */
   .sidebar.open {
     transform: translateX(0);
-  }
-
-  /* 사이드바 토글 버튼 위치 조정 (모바일) */
-  .sidebar-toggle {
-    right: -20px;
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
   }
 
   /* 사이드바 오버레이 표시 */

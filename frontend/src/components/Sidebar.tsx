@@ -82,6 +82,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {/* 작은 햄버거 메뉴 버튼 */}
+      <button
+        className={`menu-toggle ${isOpen && isMobile ? 'active' : ''}`}
+        onClick={toggleSidebar}
+        aria-label="메뉴 열기"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
       {/* 사이드바 오버레이 (모바일용) */}
       <div
         id="sidebarOverlay"
@@ -91,15 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* 사이드바 */}
       <aside className={`sidebar ${sidebarIsOpen ? 'open' : 'closed'}`} id="sidebar">
-        {/* 사이드바 토글 버튼 */}
-        <button
-          className="sidebar-toggle"
-          onClick={toggleSidebar}
-          aria-label={sidebarIsOpen ? '사이드바 접기' : '사이드바 펼치기'}
-          title={sidebarIsOpen ? '사이드바 접기' : '사이드바 펼치기'}
-        >
-          {sidebarIsOpen ? '◀' : '▶'}
-        </button>
 
         <div className="sidebar-header">
           <h1 
