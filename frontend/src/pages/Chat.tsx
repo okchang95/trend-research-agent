@@ -358,7 +358,7 @@ export const Chat: React.FC = () => {
         onSend={handleSendMessage} 
         onStop={handleStopStream}
         disabled={isStreaming || isGenerating}
-        isStreaming={isStreaming}
+        isStreaming={isStreaming || isGenerating}
       />
     </>
   );

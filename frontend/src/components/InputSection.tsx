@@ -29,7 +29,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !disabled && !isStreaming) {
+    if (e.key === 'Enter' && !disabled) {
       handleSubmit();
     }
   };
@@ -45,7 +45,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          disabled={isStreaming}
+          disabled={disabled}
         />
         
         {isStreaming ? (
