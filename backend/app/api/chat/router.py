@@ -9,6 +9,7 @@ from app.api.chat.schemas import (
     ChatRequest,
     ChatThreadCreate,
     ChatThreadResponse,
+    CancelRequest,
 )
 from app.api.chat.service import (
     ChatService,
@@ -37,6 +38,26 @@ async def chat_stream(
     """
     event_generator = service.stream_conversation(payload)
     return create_sse_response(event_generator)
+
+
+@router.post("/chat/cancel")
+async def cancel_chat(
+    payload: CancelRequest,
+    service: ChatService = Depends(get_chat_service),
+):
+    """
+    스트림 중지 시 부분 응답 저장
+    """
+    try:
+        result = await service.save_cancelled_message(payload.model_dump())
+        return CommonResponse.success_response(
+            message="Cancelled message saved successfully",
+            data=result,
+        )
+    except HTTPException as e:
+        return CommonResponse.fail_response(message=e.detail)
+    except Exception as e:
+        return ErrorResponse.fail_response(message=str(e))
 
 
 ############################################################

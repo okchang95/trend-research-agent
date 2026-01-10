@@ -2,10 +2,17 @@ import React, { useState, FormEvent, KeyboardEvent } from 'react';
 
 interface InputSectionProps {
   onSend: (message: string) => void;
+  onStop?: () => void;
   disabled?: boolean;
+  isStreaming?: boolean;
 }
 
-export const InputSection: React.FC<InputSectionProps> = ({ onSend, disabled = false }) => {
+export const InputSection: React.FC<InputSectionProps> = ({ 
+  onSend, 
+  onStop,
+  disabled = false,
+  isStreaming = false
+}) => {
   const [input, setInput] = useState('');
 
   const handleSubmit = (e?: FormEvent) => {
@@ -22,7 +29,7 @@ export const InputSection: React.FC<InputSectionProps> = ({ onSend, disabled = f
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !disabled) {
+    if (e.key === 'Enter' && !disabled && !isStreaming) {
       handleSubmit();
     }
   };
@@ -38,15 +45,28 @@ export const InputSection: React.FC<InputSectionProps> = ({ onSend, disabled = f
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          disabled={disabled}
+          disabled={isStreaming}
         />
-        <button
-          className="search-btn"
-          onClick={() => handleSubmit()}
-          disabled={disabled}
-        >
-          {disabled ? '검색 중...' : '전송'}
-        </button>
+        
+        {isStreaming ? (
+          <button
+            className="stop-btn"
+            onClick={onStop}
+            title="응답 중지"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <rect x="5" y="5" width="10" height="10" rx="1"/>
+            </svg>
+          </button>
+        ) : (
+          <button
+            className="search-btn"
+            onClick={() => handleSubmit()}
+            disabled={disabled}
+          >
+            전송
+          </button>
+        )}
       </div>
     </div>
   );

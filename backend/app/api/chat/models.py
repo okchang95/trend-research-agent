@@ -13,6 +13,13 @@ class MessageRole(str, Enum):
     ASSISTANT = "assistant"
 
 
+class ThreadStatus(str, Enum):
+    IDLE = "idle"  # 대기 중 (응답 생성 안 함)
+    GENERATING = "generating"  # 응답 생성 중
+    COMPLETED = "completed"  # 응답 완료
+    ERROR = "error"  # 에러 발생
+
+
 class ChatMessage(BaseModel):
     """
     chat_messages collection model (Message)
@@ -37,6 +44,7 @@ class ChatThread(BaseModel):
 
     user_id: PyObjectId
     title: str = Field(default="New Thread")
+    status: ThreadStatus = Field(default=ThreadStatus.IDLE)
     conversation_summary: str = Field(default="")
     last_summarized_at: datetime = Field(default=None)
     created_at: datetime = Field(

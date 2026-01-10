@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import { useSSE } from '../hooks/useSSE';
 import { getThreads, getThreadMessages } from '../utils/api';
+import { API_BASE_URL } from '../utils/env';
 import { Sidebar } from '../components/Sidebar';
 import { MessageList } from '../components/MessageList';
 import { InputSection } from '../components/InputSection';
@@ -14,7 +15,7 @@ export const Chat: React.FC = () => {
   const navigate = useNavigate();
   const { userId, isAuthenticated } = useAuth();
   const { threads, setThreads, currentThreadId, setCurrentThreadId, messages, setMessages, addMessage, clearChat } = useChat();
-  const { isStreaming, stream } = useSSE();
+  const { isStreaming, stream, cancelStream } = useSSE();
 
   const [showIntro, setShowIntro] = useState(true);
   const [streamingContent, setStreamingContent] = useState('');
@@ -22,6 +23,18 @@ export const Chat: React.FC = () => {
   const [researchStatus, setResearchStatus] = useState<{ message: string; results?: SearchResult[] } | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const prevUserIdRef = useRef<string | null>(null);
+  const currentThreadIdRef = useRef<string | null>(null);
+  const currentStreamingContentRef = useRef<string>('');
+
+  // streamingContent가 변경될 때마다 ref 업데이트
+  useEffect(() => {
+    currentStreamingContentRef.current = streamingContent;
+  }, [streamingContent]);
+
+  // currentThreadId가 변경될 때마다 ref 업데이트
+  useEffect(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
 
   // 로그인 상태 확인 및 로그아웃 시 채팅 데이터 초기화
   useEffect(() => {
@@ -77,9 +90,18 @@ export const Chat: React.FC = () => {
       setMessages(sortedMessages);
       setCurrentThreadId(threadId);
       setShowIntro(false);
-      // 스트리밍 상태 초기화
-      setStreamingContent('');
-      setNodeStatus(null);
+      
+      // 선택한 thread의 상태 확인
+      const selectedThread = threads.find(t => t.thread_id === threadId);
+      if (selectedThread?.status === 'generating') {
+        // 응답 생성 중인 thread를 선택한 경우
+        setStreamingContent('응답 생성이 진행 중입니다. 잠시만 기다려주세요...');
+        setNodeStatus({ name: 'unknown', status: 'in_progress' });
+      } else {
+        // 스트리밍 상태 초기화
+        setStreamingContent('');
+        setNodeStatus(null);
+      }
       setResearchStatus(null);
       setFindings([]);
     } catch (error) {
@@ -209,6 +231,54 @@ export const Chat: React.FC = () => {
     }
   }, [currentThreadId, addMessage, loadThreadList, setCurrentThreadId]);
 
+  // 스트림 중지 핸들러
+  const handleStopStream = useCallback(async () => {
+    // SSE 연결 취소
+    cancelStream();
+    
+    const threadId = currentThreadIdRef.current;
+    const partialContent = currentStreamingContentRef.current;
+    
+    // "응답 중지됨" 메시지를 assistant 메시지로 저장
+    if (threadId && userId) {
+      try {
+        await fetch(`${API_BASE_URL}/api/chat/cancel`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            thread_id: threadId,
+            user_id: userId,
+            partial_message: partialContent || '',
+          }),
+        });
+        
+        // Thread 목록 새로고침
+        await loadThreadList();
+        
+        // 메시지 다시 로드
+        if (threadId) {
+          const threadMessages = await getThreadMessages(threadId);
+          const sortedMessages = threadMessages.sort((a, b) => {
+            const dateA = new Date(a.timestamp);
+            const dateB = new Date(b.timestamp);
+            return dateA.getTime() - dateB.getTime();
+          });
+          setMessages(sortedMessages);
+        }
+      } catch (error) {
+        console.error('Failed to save cancelled message:', error);
+      }
+    }
+    
+    // 스트리밍 상태 초기화
+    setStreamingContent('');
+    setNodeStatus(null);
+    setResearchStatus(null);
+    setFindings([]);
+  }, [cancelStream, userId, loadThreadList, setMessages]);
+
   // 메시지 전송
   const handleSendMessage = async (message: string) => {
     if (!userId) {
@@ -282,7 +352,12 @@ export const Chat: React.FC = () => {
         )}
       </main>
 
-      <InputSection onSend={handleSendMessage} disabled={isStreaming} />
+      <InputSection 
+        onSend={handleSendMessage} 
+        onStop={handleStopStream}
+        disabled={isStreaming}
+        isStreaming={isStreaming}
+      />
     </>
   );
 };

@@ -2,7 +2,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from app.api.chat.models import MessageRole
+from app.api.chat.models import MessageRole, ThreadStatus
 
 
 ############################################################
@@ -17,6 +17,7 @@ class ChatThreadCreate(BaseModel):
 class ChatThreadResponse(BaseModel):
     thread_id: str
     title: str
+    status: ThreadStatus
     created_at: datetime
     updated_at: datetime
 
@@ -49,3 +50,9 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     thread_id: str
     assistant_message: Optional[str] = Field(default=None)
+
+
+class CancelRequest(BaseModel):
+    thread_id: str
+    user_id: str
+    partial_message: str = Field(default="")

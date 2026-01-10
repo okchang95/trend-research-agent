@@ -15,7 +15,7 @@ from app.api.chat.schemas import (
     ChatThreadResponse,
     ChatMessageResponse,
 )
-from app.api.chat.models import ChatThread, ChatMessage, MessageRole
+from app.api.chat.models import ChatThread, ChatMessage, MessageRole, ThreadStatus
 from app.core.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ class ChatThreadService:
             ChatThreadResponse(
                 thread_id=str(thread["_id"]),
                 title=thread["title"],
+                status=thread.get("status", ThreadStatus.IDLE),
                 created_at=thread["created_at"],
                 updated_at=thread["updated_at"],
             )
@@ -60,6 +61,7 @@ class ChatThreadService:
         return ChatThreadResponse(
             thread_id=str(thread_id),
             title=thread["title"],
+            status=thread.get("status", ThreadStatus.IDLE),
             created_at=thread["created_at"],
             updated_at=thread["updated_at"],
         )
@@ -112,11 +114,13 @@ class ChatService:
         Sequence:
         - 메세지 타이핑 후 "전송"버튼 클릭 시,
         1) thread 조회(대화내역 포함), 없으면 생성
-        2) 필요 시 이전 대화내역 정리 (short term memory)
-        3) 에이전트 호출 (대화내역 전달, 스트리밍)
-        4) 메세지 저장 (user_message, assistant_message)
-        5) 대화 buffer 업데이트 (thread conversations)
-        6) thread title update (if first message, update title)
+        2) 메세지 저장 (user_message)
+        3) 제목 생성 (if first message)
+        4) last_summarized_at 이후의 메세지 조회 (short term memory)
+        5) 에이전트 실행
+        6) 메세지 저장 (assistant_message)
+        7) 대화 요약 업데이트 (thread conversation_summary)
+        8) thread title update (if report generated)
         """
         user_id = payload.user_id
         thread_id = payload.thread_id
@@ -151,6 +155,23 @@ class ChatService:
             "title": thread.get("title", "New Thread"),
         }
 
+        # --------------------------------------------------------------------------------------------
+        # 2. 메세지 저장 (user_message)
+        # --------------------------------------------------------------------------------------------
+        user_message_obj = ChatMessage(
+            thread_id=thread_id,
+            role=MessageRole.USER,
+            ended_node=None,
+            message=user_message,
+            timestamp=requested_at,
+        )
+        user_message_obj = user_message_obj.model_dump()
+        user_message_obj["thread_id"] = ObjectId(thread_id)
+        await self._repo_chat_message.create(user_message_obj)
+
+        # --------------------------------------------------------------------------------------------
+        # 3. 제목 생성 (if first message)
+        # --------------------------------------------------------------------------------------------
         # 첫 메시지인 경우 user_message만으로 제목 생성 (agent 실행 전)
         if is_new_thread:
             thread_title = await self._generate_thread_title(
@@ -166,7 +187,7 @@ class ChatService:
                 "title": thread_title,
             }
         # --------------------------------------------------------------------------------------------
-        # 2. last_summarized_at 이후의 메세지 조회 (short term memory)
+        # 4. last_summarized_at 이후의 메세지 조회 (short term memory)
         # --------------------------------------------------------------------------------------------
         unsummarized_messages = (
             await self._repo_chat_message.get_unsummarized_by_thread_id(
@@ -196,12 +217,18 @@ class ChatService:
         conversations_summary = thread.get("conversation_summary", "")
 
         # --------------------------------------------------------------------------------------------
-        # 3. 에이전트 실행
+        # 5. 에이전트 실행
         # --------------------------------------------------------------------------------------------
         final_answer = None
         current_node = None
         report_summary = None
         findings = None
+
+        # Thread 상태를 GENERATING으로 변경
+        await self._repo_chat_thread.update(
+            thread_id,
+            {"status": ThreadStatus.GENERATING, "updated_at": requested_at},
+        )
 
         try:
             # 에이전트 스트리밍 실행
@@ -219,11 +246,6 @@ class ChatService:
 
                 yield event
 
-            # 최종 메시지 생성이 writer 노드인 경우 보고서 요약
-            if final_answer:
-                if current_node == "writer":
-                    report_summary = await self._summarize_report(final_answer)
-
         except Exception as e:
             logger.error(f"Streaming error: {e}")
             yield {
@@ -232,119 +254,142 @@ class ChatService:
             }
             final_answer = "error"
 
-        generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
+        finally:
+            # 연결이 끊겨도 final_answer가 있으면 반드시 저장
+            if final_answer:
+                try:
+                    generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
 
-        # --------------------------------------------------------------------------------------------
-        # 4. 메세지 저장 (user_message, assistant_message)
-        # --------------------------------------------------------------------------------------------
-        user_message_obj = ChatMessage(
-            thread_id=thread_id,
-            role=MessageRole.USER,
-            ended_node=current_node,
-            message=user_message,
-            timestamp=requested_at,
-        )
-        user_message_obj = user_message_obj.model_dump()
-        user_message_obj["thread_id"] = ObjectId(thread_id)
-        await self._repo_chat_message.create(user_message_obj)
+                    # 최종 메시지 생성이 writer 노드인 경우 보고서 요약
+                    if current_node == "writer":
+                        report_summary = await self._summarize_report(final_answer)
 
-        assistant_message_obj = ChatMessage(
-            thread_id=thread_id,
-            role=MessageRole.ASSISTANT,
-            ended_node=current_node,
-            message=final_answer,
-            report_summary=report_summary,
-            findings=findings,
-            timestamp=generated_at,
-        )
-        assistant_message_obj = assistant_message_obj.model_dump()
-        assistant_message_obj["thread_id"] = ObjectId(thread_id)
-        await self._repo_chat_message.create(assistant_message_obj)
+                    # --------------------------------------------------------------------------------------------
+                    # 6. 메세지 저장 (assistant_message)
+                    # --------------------------------------------------------------------------------------------
+                    assistant_message_obj = ChatMessage(
+                        thread_id=thread_id,
+                        role=MessageRole.ASSISTANT,
+                        ended_node=current_node,
+                        message=final_answer,
+                        report_summary=report_summary,
+                        findings=findings,
+                        timestamp=generated_at,
+                    )
+                    assistant_message_obj = assistant_message_obj.model_dump()
+                    assistant_message_obj["thread_id"] = ObjectId(thread_id)
+                    await self._repo_chat_message.create(assistant_message_obj)
+                    logger.info(f"Assistant message saved for thread {thread_id}")
 
-        # --------------------------------------------------------------------------------------------
-        # 5. 대화 요약 업데이트 (thread conversation_summary)
-        # --------------------------------------------------------------------------------------------
-        UNSUMMARIZED_THRESHOLD = 20
-        RECENT_COUNT = 12
-        total_unsummarized_after_turn = len(unsummarized_messages) + 2
+                    # --------------------------------------------------------------------------------------------
+                    # 7. 대화 요약 업데이트 (thread conversation_summary)
+                    # --------------------------------------------------------------------------------------------
+                    UNSUMMARIZED_THRESHOLD = 20
+                    RECENT_COUNT = 12
+                    total_unsummarized_after_turn = len(unsummarized_messages) + 2
 
-        # 요약되지 않은 메세지가 20개 이상일때, 최근 12개의 메세지를 제외한 8개의 메세지와 요약 내용을 업데이트
-        if total_unsummarized_after_turn >= UNSUMMARIZED_THRESHOLD:
-            # 요약할 메시지가 충분한지 확인
-            messages_to_summarize = (
-                unsummarized_messages[:-RECENT_COUNT]
-                if len(unsummarized_messages) >= RECENT_COUNT
-                else []
-            )
+                    # 요약되지 않은 메세지가 20개 이상일때, 최근 12개의 메세지를 제외한 8개의 메세지와 요약 내용을 업데이트
+                    if total_unsummarized_after_turn >= UNSUMMARIZED_THRESHOLD:
+                        # 요약할 메시지가 충분한지 확인
+                        messages_to_summarize = (
+                            unsummarized_messages[:-RECENT_COUNT]
+                            if len(unsummarized_messages) >= RECENT_COUNT
+                            else []
+                        )
 
-            # 요약할 메시지가 있을 때 요약 진행
-            if messages_to_summarize:
-                logger.info("Updating conversation summary")
-                new_summary = await self._summarize_context(
-                    conversations=messages_to_summarize,
-                    conversations_summary=conversations_summary,
-                )
+                        # 요약할 메시지가 있을 때 요약 진행
+                        if messages_to_summarize:
+                            logger.info("Updating conversation summary")
+                            new_summary = await self._summarize_context(
+                                conversations=messages_to_summarize,
+                                conversations_summary=conversations_summary,
+                            )
 
-                await self._repo_chat_thread.update(
-                    thread_id,
-                    {
-                        "conversation_summary": new_summary,
-                        "last_summarized_at": generated_at,
-                        "updated_at": generated_at,
-                    },
-                )
+                            await self._repo_chat_thread.update(
+                                thread_id,
+                                {
+                                    "conversation_summary": new_summary,
+                                    "last_summarized_at": generated_at,
+                                    "updated_at": generated_at,
+                                },
+                            )
+                        else:
+                            await self._repo_chat_thread.update(
+                                thread_id,
+                                {"updated_at": generated_at},
+                            )
+                    else:
+                        await self._repo_chat_thread.update(
+                            thread_id,
+                            {"updated_at": generated_at},
+                        )
+
+                    # --------------------------------------------------------------------------------------------
+                    # 8. thread title update (if report generated)
+                    # --------------------------------------------------------------------------------------------
+                    # 보고서 작성 완료 후 스레드 제목 업데이트
+                    if current_node == "writer":
+                        conversations = []
+
+                        # unsummarized_messages가 있으면 포함
+                        conversations = (
+                            [
+                                {"role": msg["role"], "message": msg["message"]}
+                                for msg in unsummarized_messages
+                            ]
+                            if unsummarized_messages
+                            else []
+                        )
+
+                        # 현재 턴의 메시지 추가
+                        conversations.extend(
+                            [
+                                {
+                                    "role": "user",
+                                    "message": user_message,
+                                },
+                                {
+                                    "role": "assistant",
+                                    "message": report_summary or final_answer or "",
+                                },
+                            ]
+                        )
+
+                        thread_title = await self._generate_thread_title(conversations)
+                        await self._repo_chat_thread.update(
+                            thread_id,
+                            {"title": thread_title, "updated_at": generated_at},
+                        )
+                        yield {
+                            "type": "thread",
+                            "thread_id": thread_id,
+                            "title": thread_title,
+                        }
+
+                    # Thread 상태를 COMPLETED 또는 ERROR로 업데이트
+                    final_status = (
+                        ThreadStatus.ERROR
+                        if final_answer == "error"
+                        else ThreadStatus.COMPLETED
+                    )
+                    await self._repo_chat_thread.update(
+                        thread_id,
+                        {"status": final_status},
+                    )
+
+                except Exception as save_error:
+                    logger.error(f"Failed to save assistant message: {save_error}")
+                    # 저장 실패 시 에러 상태로 변경
+                    await self._repo_chat_thread.update(
+                        thread_id,
+                        {"status": ThreadStatus.ERROR},
+                    )
             else:
+                # final_answer가 없으면 (중단된 경우) IDLE 상태로 복귀
                 await self._repo_chat_thread.update(
                     thread_id,
-                    {"updated_at": generated_at},
+                    {"status": ThreadStatus.IDLE},
                 )
-        else:
-            await self._repo_chat_thread.update(
-                thread_id,
-                {"updated_at": generated_at},
-            )
-
-        # --------------------------------------------------------------------------------------------
-        # 6. thread title update (if report generated)
-        # --------------------------------------------------------------------------------------------
-        # 보고서 작성 완료 후 스레드 제목 업데이트
-        if current_node == "writer":
-            conversations = []
-
-            # unsummarized_messages가 있으면 포함
-            conversations = (
-                [
-                    {"role": msg["role"], "message": msg["message"]}
-                    for msg in unsummarized_messages
-                ]
-                if unsummarized_messages
-                else []
-            )
-
-            # 현재 턴의 메시지 추가
-            conversations.extend(
-                [
-                    {
-                        "role": "user",
-                        "message": user_message,
-                    },
-                    {
-                        "role": "assistant",
-                        "message": report_summary or final_answer or "",
-                    },
-                ]
-            )
-
-            thread_title = await self._generate_thread_title(conversations)
-            await self._repo_chat_thread.update(
-                thread_id,
-                {"title": thread_title, "updated_at": generated_at},
-            )
-            yield {
-                "type": "thread",
-                "thread_id": thread_id,
-                "title": thread_title,
-            }
 
     ############################################################################################
     #
@@ -434,3 +479,49 @@ class ChatService:
         result = await chain.ainvoke({"report": report})
         logger.info(f"Report summarized: {result.content}")
         return result.content
+
+    async def save_cancelled_message(self, payload: dict):
+        """
+        스트림 중지 시 부분 응답 저장
+        """
+        thread_id = payload.get("thread_id")
+        user_id = payload.get("user_id")
+        partial_message = payload.get("partial_message", "")
+
+        if not thread_id or not user_id:
+            raise ValueError("thread_id and user_id are required")
+
+        generated_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
+
+        # "응답 중지됨" 메시지 생성
+        if partial_message:
+            cancelled_message = (
+                f"{partial_message}\n\n---\n\n**[응답이 중지되었습니다]**"
+            )
+        else:
+            cancelled_message = "**[응답이 중지되었습니다]**"
+
+        # Assistant 메시지 저장
+        assistant_message_obj = ChatMessage(
+            thread_id=thread_id,
+            role=MessageRole.ASSISTANT,
+            ended_node="cancelled",  # 특별한 상태 표시
+            message=cancelled_message,
+            timestamp=generated_at,
+        )
+        assistant_message_obj = assistant_message_obj.model_dump()
+        assistant_message_obj["thread_id"] = ObjectId(thread_id)
+        message_id = await self._repo_chat_message.create(assistant_message_obj)
+
+        # Thread updated_at 및 status 업데이트 (IDLE로 복귀)
+        await self._repo_chat_thread.update(
+            thread_id,
+            {"updated_at": generated_at, "status": ThreadStatus.IDLE},
+        )
+
+        logger.info(f"Cancelled message saved for thread {thread_id}")
+
+        return {
+            "message_id": str(message_id),
+            "thread_id": thread_id,
+        }

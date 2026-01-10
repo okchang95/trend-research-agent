@@ -7,6 +7,7 @@ export interface Thread {
   thread_id: string;
   user_id: string;
   title: string;
+  status: 'idle' | 'generating' | 'completed' | 'error';
   created_at: string;
   updated_at: string;
 }
