@@ -23,9 +23,9 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │                          Client (Browser)                       │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │              React Application (SPA)                     │   │
-│  │  • React Router (Thread별 URL)                           │   │
-│  │  • Context API (전역 상태)                                │   │
-│  │  • useSSE Hook (SSE 스트리밍)                             │   │
+│  │  • React Router (Thread별 URL)                            │   │
+│  │  • Context API (전역 상태)                                 │   │
+│  │  • useSSE Hook (SSE 스트리밍)                              │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                             │
@@ -33,9 +33,9 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Nginx (Reverse Proxy)                   │
-│  • 정적 파일 서빙 (Frontend)                                     │
-│  • API 요청 프록시 (/api → Backend)                             │
-│  • SSL/TLS 종료                                                 │
+│  • 정적 파일 서빙 (Frontend)                                       │
+│  • API 요청 프록시 (/api → Backend)                                │
+│  • SSL/TLS 종료                                                  │
 └─────────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -49,10 +49,10 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │                          │                                      │
 │  ┌───────────────────────▼──────────────────────────────────┐   │
 │  │                   Service Layer                          │   │
-│  │  • ChatService (비즈니스 로직)                             │   │
+│  │  • ChatService (비즈니스 로직)                              │   │
 │  │  • ChatThreadService (Thread CRUD)                       │   │
 │  │  • ChatMessageService (Message CRUD)                     │   │
-│  │  • UserService (사용자 관리)                               │   │
+│  │  • UserService (사용자 관리)                                │   │
 │  └───────────────────────┬──────────────────────────────────┘   │
 │                          │                                      │
 │  ┌───────────────────────▼──────────────────────────────────┐   │
@@ -65,7 +65,7 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │  ┌───────────────────────▼──────────────────────────────────┐   │
 │  │                  Agents Layer                            │   │
 │  │  • LangGraph App (Workflow)                              │   │
-│  │  • AgentRunner (실행 및 스트리밍)                          │   │
+│  │  • AgentRunner (실행 및 스트리밍)                            │   │
 │  │  • Nodes (scoping, researcher, writer)                   │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
@@ -73,17 +73,17 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         MongoDB                                 │
-│  • chat_threads (Thread 정보 및 상태)                            │
-│  • chat_messages (메시지 및 findings)                            │
-│  • users (사용자 정보)                                           │
+│  • chat_threads (Thread 정보 및 상태)                              │
+│  • chat_messages (메시지 및 findings)                             │
+│  • users (사용자 정보)                                             │
 └─────────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     External Services                           │
 │  • OpenAI (GPT-4o, GPT-4o-mini)                                 │
-│  • Tavily (웹 검색)                                              │
-│  • ArXiv (학술 논문 검색)                                         │
+│  • Tavily (웹 검색)                                               │
+│  • ArXiv (학술 논문 검색)                                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,9 +98,9 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │                        API Layer                            │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ Router (FastAPI)                                    │    │
-│  │ • HTTP 요청/응답 처리                                 │    │
+│  │ • HTTP 요청/응답 처리                                  │    │
 │  │ • 요청 검증 (Pydantic)                                │    │
-│  │ • 의존성 주입 (Depends)                               │    │
+│  │ • 의존성 주입 (Depends)                                │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -109,10 +109,10 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │                     Service Layer                           │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ Business Logic                                      │    │
-│  │ • 비즈니스 규칙 구현                                   │    │
+│  │ • 비즈니스 규칙 구현                                     │    │
 │  │ • Transaction 관리                                   │    │
-│  │ • Agent 실행 및 스트리밍                              │    │
-│  │ • 백그라운드 Task 관리                                │    │
+│  │ • Agent 실행 및 스트리밍                                │    │
+│  │ • 백그라운드 Task 관리                                  │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -122,15 +122,15 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │ Data Access                                         │    │
 │  │ • CRUD 연산                                          │    │
-│  │ • 쿼리 구성                                          │    │
-│  │ • 데이터 변환 (MongoDB ↔ Pydantic)                   │    │
+│  │ • 쿼리 구성                                           │    │
+│  │ • 데이터 변환 (MongoDB ↔ Pydantic)                     │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Database                               │
-│                     MongoDB                                 │
+│                      MongoDB                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -138,47 +138,47 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    LangGraph App                            │
+│                       LangGraph App                         │
 │                                                             │
 │  ┌───────────┐                                              │
 │  │   START   │                                              │
 │  └─────┬─────┘                                              │
 │        │                                                    │
-│  ┌─────▼──────────────┐                                     │
-│  │  clarify_requirement│                                     │
-│  │     (Scoping Node) │                                     │
-│  └─────┬──────────────┘                                     │
+│  ┌─────▼────────────────┐                                   │
+│  │  clarify_requirement │                                   │
+│  │     (Scoping Node)   │                                   │
+│  └─────┬────────────────┘                                   │
 │        │                                                    │
 │        ├─── is_clarified=False ──→ [END]                    │
-│        │    (일반 대화)                                      │
+│        │    (일반 대화)                                       │
 │        │                                                    │
 │        └─── is_clarified=True                               │
-│             (트렌드 분석 요청)                                │
+│             (트렌드 분석 요청)                                  │
 │             │                                               │
 │  ┌──────────▼────────────────────────────────────────────┐  │
-│  │           Researcher SubGraph                        │  │
-│  │  ┌──────────────┐        ┌──────────────┐           │  │
-│  │  │  Agent Node  │◄──────►│  Tools Node  │           │  │
-│  │  │ (LLM 추론)    │        │ (도구 실행)   │           │  │
-│  │  └──────────────┘        └──────────────┘           │  │
-│  │        │                        │                    │  │
-│  │        │   should_continue?     │                    │  │
-│  │        └────────┬───────────────┘                    │  │
-│  │                 │ (최대 3회 반복)                     │  │
-│  │                 │                                    │  │
-│  │  Tools:                                              │  │
-│  │  • tavily_search (웹 검색)                            │  │
-│  │  • arxiv_search (논문 검색)                           │  │
-│  └──────────────────┬──────────────────────────────────┘  │
-│                     │                                     │
-│  ┌──────────────────▼──────────────────────────────────┐  │
-│  │              Writer Node                            │  │
-│  │         (보고서 작성)                                 │  │
-│  └──────────────────┬──────────────────────────────────┘  │
-│                     │                                     │
-│  ┌──────────────────▼──────────────────────────────────┐  │
-│  │                  END                                 │  │
-│  └──────────────────────────────────────────────────────┘  │
+│  │           Researcher SubGraph                         │  │
+│  │  ┌──────────────┐        ┌──────────────┐             │  │
+│  │  │  Agent Node  │◄──────►│  Tools Node  │             │  │
+│  │  │ (LLM 추론)    │        │  (도구 실행)   │             │  │
+│  │  └──────────────┘        └──────────────┘             │  │
+│  │        │                        │                     │  │
+│  │        │   should_continue?     │                     │  │
+│  │        └──────────┬─────────────┘                     │  │
+│  │                   │ (최대 3회 반복)                      │  │
+│  │                   │                                   │  │
+│  │          Tools:                                       │  │
+│  │           • tavily_search (웹 검색)                     │  │
+│  │           • arxiv_search (논문 검색)                    │  │
+│  └───────────────────┬───────────────────────────────────┘  │
+│                      │                                      │
+│  ┌───────────────────▼───────────────────────────────────┐  │
+│  │              Writer Node                              │  │
+│  │              (보고서 작성)                               │  │
+│  └───────────────────┬───────────────────────────────────┘  │
+│                      │                                      │
+│  ┌───────────────────▼───────────────────────────────────┐  │
+│  │                  END                                  │  │
+│  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -186,27 +186,24 @@ Trend Agent v2.0의 전체 시스템 아키텍처를 설명합니다.
 
 ```python
 class AgentState(TypedDict):
-    # 입력
+    # 메타데이터
+    current_node: str
     user_message: str
-    conversations: List[ChatMessage]
+    conversations: List[dict]
     conversations_summary: str
     
     # Scoping 출력
     is_clarified: bool
+    reason: str  # clarification 이유
     subject: str
     scope: str
     brief_requirement: str
-    answer: str  # scoping 단계 응답
     
     # Research 출력
-    findings: List[Finding]
+    findings: List[dict]
     
-    # Writer 출력
-    # answer 필드 재사용 (최종 보고서)
-    
-    # 메타데이터
-    current_node: str
-    ended_node: str
+    # Writer 출력 (scoping에서도 사용)
+    answer: str
 ```
 
 ---
@@ -268,8 +265,8 @@ App (Router)
 ┌─────────────────────────────────────────────────────────────┐
 │                   Page Level State                          │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ Chat.tsx (Thread별 독립 상태)                         │   │
-│  │ • messages (로컬 상태)                                │   │
+│  │ Chat.tsx (Thread별 독립 상태)                           │   │
+│  │ • messages (로컬 상태)                                 │   │
 │  │ • streamingContent                                   │   │
 │  │ • nodeStatus                                         │   │
 │  │ • researchStatus                                     │   │
@@ -431,13 +428,14 @@ App (Router)
 ```typescript
 type SSEEvent = 
   | { type: 'thread'; thread_id: string; title?: string }
-  | { type: 'node_start'; node: string }
-  | { type: 'node_complete'; node: string }
-  | { type: 'research_status'; status: string; query?: string }
+  | { type: 'node_start'; node: string; status: string }
+  | { type: 'node_complete'; node: string; status: string; state: object }
+  | { type: 'research_status'; message: string; results?: SearchResult[] }
   | { type: 'research_findings'; findings: Finding[] }
-  | { type: 'text_chunk'; content: string }
+  | { type: 'text_chunk'; char: string }
+  | { type: 'scoping_complete' }
   | { type: 'final'; state: FinalState }
-  | { type: 'error'; message: string };
+  | { type: 'error'; error: string };
 ```
 
 ### Backend: Event Generation
@@ -502,22 +500,22 @@ const stream = async (threadId: string, body: any, onEvent: (e: SSEEvent) => voi
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   Task 생명주기                              │
+│                   Task 생명주기                               │
 │                                                             │
 │  1. 생성 (CREATE)                                            │
 │     background_task = asyncio.create_task(...)              │
 │     self._active_tasks[thread_id] = (task, cancel_event)    │
 │                                                             │
 │  2. 실행 (RUNNING)                                           │
-│     Agent 실행 → Event Queue → SSE 전송                      │
+│     Agent 실행 → Event Queue → SSE 전송                       │
 │                                                             │
 │  3. 완료 (COMPLETED)                                         │
-│     DB 저장 → Queue.put(None) → Task 종료                    │
+│     DB 저장 → Queue.put(None) → Task 종료                     │
 │     self._active_tasks.pop(thread_id)                       │
 │                                                             │
-│  4. 취소 (CANCELLED) - 선택적                                │
+│  4. 취소 (CANCELLED) - 선택적                                  │
 │     cancel_event.set()                                      │
-│     1초 대기 → task.cancel()                                │
+│     1초 대기 → task.cancel()                                  │
 │     self._active_tasks.pop(thread_id)                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -675,9 +673,9 @@ async def stream_chat(
 ### Docker Compose 구성
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Docker Network                         │
-│                                                             │
+┌────────────────────────────────────────────────────────────┐
+│                      Docker Network                        │
+│                                                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │   nginx      │  │   backend    │  │   mongodb    │      │
 │  │   (80/443)   │  │   (8000)     │  │   (27017)    │      │
@@ -698,7 +696,7 @@ async def stream_chat(
 │                      │ Tavily   │           │              │
 │                      │ ArXiv    │           │              │
 │                      └──────────┘           │              │
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
 ```
 
 ### 환경별 설정

@@ -69,7 +69,16 @@ export interface FinalEvent extends SSEEvent {
   type: 'final';
   state: {
     answer: string;
+    current_node?: string;
+    is_clarified?: boolean;
+    subject?: string;
+    scope?: string;
+    findings?: Finding[];
   };
+}
+
+export interface ScopingCompleteEvent extends SSEEvent {
+  type: 'scoping_complete';
 }
 
 export interface ErrorEvent extends SSEEvent {

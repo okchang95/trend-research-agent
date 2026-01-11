@@ -38,6 +38,7 @@ export const Chat: React.FC = () => {
   const [researchStatus, setResearchStatus] = useState<{ message: string; results?: SearchResult[] } | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [scrollTrigger, setScrollTrigger] = useState(0); // 메시지 전송 시 스크롤 트리거
   const initialMessageSentRef = useRef(false);
   const lastThreadIdRef = useRef<string | null>(null);
 
@@ -267,6 +268,9 @@ export const Chat: React.FC = () => {
         timestamp: new Date().toISOString(),
       };
       addMessage(userMessage);
+      
+      // 메시지 전송 시 스크롤 트리거 (사용자 메시지가 화면 상단에 오도록)
+      setScrollTrigger(prev => prev + 1);
 
       // 스트리밍 상태 초기화
       setStreamingContent('');
@@ -318,6 +322,9 @@ export const Chat: React.FC = () => {
     };
     setLocalMessages(prev => [...prev, userMessage]);
     addMessage(userMessage);
+    
+    // 메시지 전송 시 스크롤 트리거 (사용자 메시지가 화면 상단에 오도록)
+    setScrollTrigger(prev => prev + 1);
 
     setStreamingContent('');
     setNodeStatus(null);
@@ -393,6 +400,7 @@ export const Chat: React.FC = () => {
             nodeStatus={nodeStatus}
             researchStatus={researchStatus}
             findings={findings}
+            scrollTrigger={scrollTrigger}
           />
         </div>
       </main>
