@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Message } from './Message';
 import { NodeStatus } from './NodeStatus';
 import { ResearchStatus } from './ResearchStatus';
@@ -29,7 +29,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // 메시지 컨테이너의 스크롤 위치 감지
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
@@ -38,25 +38,26 @@ export const MessageList: React.FC<MessageListProps> = ({
     const clientHeight = container.clientHeight;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
-    // 하단에서 50px 이내면 자동 스크롤 활성화, 그렇지 않으면 비활성화
+    // 하단에서 100px 이상 떨어지면 자동 스크롤 비활성화
+    // 50px 이내면 자동 스크롤 활성화
     setShouldAutoScroll(distanceFromBottom < 50);
-  };
+  }, []);
 
-  // 스크롤 이벤트 리스너 등록 (컨테이너 레벨)
+  // 스크롤 이벤트 리스너 등록
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
     
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [handleScroll]);
 
-  // 새 메시지가 추가되면 스크롤을 맨 아래로 (사용자가 하단에 있을 때만)
+  // 새 메시지가 추가되면 스크롤을 맨 아래로 (자동 스크롤이 활성화된 경우만)
   useEffect(() => {
     if (shouldAutoScroll && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, streamingContent, nodeStatus, researchStatus, findings, shouldAutoScroll]);
+  }, [messages, streamingContent, shouldAutoScroll]);
 
   // 키보드가 열릴 때 스크롤을 하단으로 유지
   useEffect(() => {
@@ -123,7 +124,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       {messages.map((msg, index) => (
         <div key={index}>
           <Message role={msg.role} content={msg.message} />
-          {/* writer 노드에서 종료된 메시지에만 findings 표시 */}
+          {/* writer 노드에서 종료된 메시지에만 findings를 별도 블록으로 표시 */}
           {msg.role === 'assistant' && msg.ended_node === 'writer' && msg.findings && msg.findings.length > 0 && (
             <div className="message assistant-message">
               <div className="message-content">
