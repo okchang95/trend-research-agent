@@ -1,50 +1,44 @@
 import logging
-import os
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import router
-from app.core.config import Config
-from app.core.logging import setup_logging
+from app.api.chat.router import router as chat_router
+from app.api.users.router import router as users_router
 
+from app.core.logging import setup_logging
+from app.core.lifespan import lifespan
+
+# 로깅 설정
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 환경변수 로딩 및 LangSmith tracking 설정
-    config = Config()
-    if config.LANGCHAIN_TRACING_V2:
-        os.environ["LANGCHAIN_TRACING_V2"] = config.LANGCHAIN_TRACING_V2
-    if config.LANGSMITH_API_KEY:
-        os.environ["LANGSMITH_API_KEY"] = config.LANGSMITH_API_KEY
-    if config.LANGSMITH_ENDPOINT:
-        os.environ["LANGSMITH_ENDPOINT"] = config.LANGSMITH_ENDPOINT
-    if config.LANGSMITH_PROJECT:
-        os.environ["LANGSMITH_PROJECT"] = config.LANGSMITH_PROJECT
+# FastAPI 애플리케이션 생성 factory
+def create_app() -> FastAPI:
+    # FastAPI 애플리케이션 생성
+    app = FastAPI(lifespan=lifespan)
 
-    logger.info(f"LangSmith tracking enabled: {config.LANGCHAIN_TRACING_V2}")
-    logger.info(f"LangSmith project: {config.LANGSMITH_PROJECT}")
+    # CORS 설정
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    yield
+    # API 라우터 등록
+    PREFIX = "/api"
+    app.include_router(chat_router, prefix=PREFIX, tags=["chat"])
+    app.include_router(users_router, prefix=PREFIX, tags=["users"])
 
+    # 상태 체크 엔드포인트
+    @app.get("/health")
+    def health_check():
+        return {"status": "ok"}
 
-app = FastAPI(lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(router, prefix="/api")
+    return app
 
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+app = create_app()

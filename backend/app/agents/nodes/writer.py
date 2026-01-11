@@ -15,11 +15,11 @@ from langgraph.types import Command
 
 from app.agents.state import AgentState
 from app.agents.prompts import WRITING_SYSTEM_PROMPT, WRITING_USER_PROMPT
-from app.core.config import Config
+from app.core.config import get_config
 from app.core.llm import WRITER_LLM
 
 logger = logging.getLogger(__name__)
-config = Config()
+config = get_config()
 
 
 def format_findings_for_prompt(findings: List[Dict]) -> str:

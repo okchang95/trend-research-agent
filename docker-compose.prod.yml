@@ -1,0 +1,61 @@
+# 프로덕션용 docker-compose (React 빌드 포함)
+# 사용법: docker-compose -f docker-compose.prod.yml up --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: research-agent-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/logs:/app/logs
+    depends_on:
+      - mongo
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mongo:
+    image: mongo:8.2
+    container_name: research-agent-mongo
+    restart: unless-stopped
+    env_file:
+      - ./mongo/.env
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"   # Compass 접속용
+    networks:
+      - app-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile.prod
+    container_name: research-agent-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    volumes:
+      # 프로덕션: React 빌드는 Dockerfile 내부에서 수행되므로 볼륨 불필요
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+volumes:
+  mongo_data:
+
+networks:
+  app-network:
+    driver: bridge

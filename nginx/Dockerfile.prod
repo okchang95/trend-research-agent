@@ -1,0 +1,37 @@
+# Multi-stage build for production (React 빌드 포함)
+# 사용법: docker-compose -f docker-compose.prod.yml up
+
+# Stage 1: React 빌드
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# package.json과 package-lock.json 복사
+COPY frontend/package*.json ./
+
+# 의존성 설치
+RUN npm ci
+
+# 소스 코드 복사
+COPY frontend/ ./
+
+# 프로덕션 빌드 (.env 없이 빌드 - window.location.origin 사용)
+RUN npm run build
+
+# Stage 2: Nginx 서버
+FROM nginx:alpine
+
+# 기본 nginx 설정 삭제
+RUN rm /etc/nginx/conf.d/default.conf
+
+# 커스텀 nginx 설정 복사 (프로덕션용 - HTTPS 포함)
+COPY nginx/nginx.conf.prod /etc/nginx/conf.d/default.conf
+
+# React 빌드 결과물 복사
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 포트 노출
+EXPOSE 80 443
+
+# nginx 실행
+CMD ["nginx", "-g", "daemon off;"]

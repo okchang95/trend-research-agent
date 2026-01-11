@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from typing import AsyncIterator, List, Dict
@@ -6,7 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.graph import graph_builder
 from app.agents.state import AgentState
-from app.agents.steaming.event_handlers import StreamEventHandler
+from app.agents.streaming.event_handlers import StreamEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +19,21 @@ class AgentRunner:
         self.graph_app = graph_builder().compile(checkpointer=memory)
 
     async def stream(
-        self, user_message: str, conversations: List[Dict], conversations_summary: str
+        self,
+        user_message: str,
+        conversations: List[Dict],
+        conversations_summary: str,
+        cancel_event: "asyncio.Event" = None,
     ) -> AsyncIterator[Dict]:
         """
         SSE를 위한 스트리밍 실행
         astream_events를 사용하여 노드 시작/완료, LLM 스트리밍, 도구 실행 이벤트 감지
+
+        Args:
+            user_message: 사용자 메시지
+            conversations: 대화 기록
+            conversations_summary: 대화 요약
+            cancel_event: 취소 이벤트 (중지 버튼용)
         """
         # AgentState의 모든 필수 필드 초기화
         initial_state = AgentState(
@@ -62,6 +73,11 @@ class AgentRunner:
                     "on_tool_end",
                 ],
             ):
+                # 취소 체크 (중지 버튼)
+                if cancel_event and cancel_event.is_set():
+                    logger.info("Agent stream cancelled by user")
+                    break
+
                 event_type = event.get("event", "")
 
                 # 이벤트 타입별 핸들러 호출
@@ -96,31 +112,3 @@ class AgentRunner:
                 "type": "error",
                 "error": str(e),
             }
-
-    async def run(
-        self, user_message: str, conversations: List[Dict], conversations_summary: str
-    ):
-        # AgentState의 모든 필수 필드 초기화
-        state = AgentState(
-            current_node="",
-            user_message=user_message,
-            conversations=conversations,
-            conversations_summary=conversations_summary,
-            is_clarified=False,
-            reason="",
-            subject="",
-            scope="",
-            brief_requirement="",
-            findings=[],
-            answer="",
-        )
-        # 그래프 실행
-        try:
-            result_state = await self.graph_app.ainvoke(state)
-            logger.info(f"Result state: {result_state}")
-            return {
-                "answer": result_state.get("answer", ""),
-            }
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            raise RuntimeError("Agent request failed.")

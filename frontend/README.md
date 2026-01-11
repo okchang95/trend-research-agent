@@ -1,386 +1,483 @@
-# Frontend - AI 트렌드 분석 어시스턴트
+# Frontend - Trend Agent UI
 
-Vanilla JavaScript로 구현된 모듈화된 프론트엔드 애플리케이션입니다. SSE(Server-Sent Events)를 통한 실시간 스트리밍과 마크다운/Mermaid 다이어그램 렌더링을 지원합니다.
+React + TypeScript 기반의 AI 트렌드 분석 에이전트 프론트엔드입니다.
 
-## 🛠 기술 스택
+## 📋 목차
 
-- **Vanilla JavaScript**: 순수 JavaScript (프레임워크 없음)
-- **Marked.js**: 마크다운 파싱
-- **Mermaid.js**: 다이어그램 렌더링
-- **SSE (Server-Sent Events)**: 실시간 스트리밍 통신
-- **HTML5/CSS3**: 모던 웹 표준
+- [아키텍처](#아키텍처)
+- [기술 스택](#기술-스택)
+- [프로젝트 구조](#프로젝트-구조)
+- [핵심 컴포넌트](#핵심-컴포넌트)
+- [상태 관리](#상태-관리)
+- [v1 대비 개선사항](#v1-대비-개선사항)
+- [설치 및 실행](#설치-및-실행)
+- [개발 가이드](#개발-가이드)
+
+---
+
+## 🏗️ 아키텍처
+
+### 컴포넌트 구조
+
+```
+App (Router)
+├── Landing Page (/)
+│   └── 서비스 소개 + 시작하기 버튼
+│
+├── Threads Page (/chat)
+│   ├── Sidebar (Thread 목록)
+│   ├── IntroSection (사용 예시)
+│   └── InputSection (메시지 입력)
+│
+└── Chat Page (/chat/:threadId)
+    ├── Sidebar (Thread 목록)
+    ├── MessageList
+    │   ├── Message (user/assistant)
+    │   ├── NodeStatus (노드 상태)
+    │   ├── ResearchStatus (리서치 진행)
+    │   └── ResearchFindings (출처 토글)
+    └── InputSection (메시지 입력)
+```
+
+### 데이터 흐름
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     React Components                        │
+│                                                             │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────────────┐  │
+│  │ Landing │  │ Threads │  │  Chat   │  │  Components   │  │
+│  │  Page   │  │  Page   │  │  Page   │  │               │  │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └───────┬───────┘  │
+│       │            │            │                │          │
+│       └────────────┴────────────┴────────────────┘          │
+│                           │                                  │
+│  ┌────────────────────────▼─────────────────────────────┐   │
+│  │                   Contexts                            │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐            │   │
+│  │  │   AuthContext   │  │   ChatContext   │            │   │
+│  │  │   (userId)      │  │   (threads,     │            │   │
+│  │  │                 │  │    messages)    │            │   │
+│  │  └─────────────────┘  └─────────────────┘            │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│  ┌────────────────────────▼─────────────────────────────┐   │
+│  │                   Custom Hooks                        │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │                    useSSE                       │  │   │
+│  │  │  • stream(): SSE 연결 및 이벤트 처리             │  │   │
+│  │  │  • cancelStream(): 스트림 취소                  │  │   │
+│  │  │  • isThreadStreaming(): 상태 확인              │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+└───────────────────────────┼──────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Utils (API)                            │
+│  fetchThreads, fetchMessages, createThread, ...             │
+└─────────────────────────────────────────────────────────────┘
+                            │ HTTP / SSE
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Backend API                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ 기술 스택
+
+| 카테고리 | 기술 | 버전 | 용도 |
+|---------|------|------|------|
+| **UI Library** | React | 18.2+ | 컴포넌트 기반 UI |
+| **Language** | TypeScript | 5.2+ | 타입 안정성 |
+| **Build Tool** | Vite | 5.0+ | 빠른 개발 서버 |
+| **Routing** | React Router | 6.20+ | 클라이언트 라우팅 |
+| **Markdown** | Marked.js | 11.1+ | 마크다운 파싱 |
+| **Diagrams** | Mermaid.js | 10.6+ | 다이어그램 렌더링 |
+
+---
 
 ## 📁 프로젝트 구조
 
 ```
 frontend/
-├── js/
-│   ├── sseClient.js        # SSE 클라이언트
-│   ├── stateManager.js      # 상태 관리
-│   ├── eventHandlers.js     # 이벤트 핸들러
-│   ├── uiUpdater.js         # UI 업데이트
-│   ├── messageRenderer.js   # 메시지 렌더링
-│   └── markdownUtils.js    # 마크다운/Mermaid 유틸리티
-├── app.js                   # 메인 애플리케이션
-├── index.html              # HTML 템플릿
-├── styles.css              # 스타일시트
-└── serve.sh                # 개발 서버 스크립트
+├── src/
+│   ├── components/              # UI 컴포넌트
+│   │   ├── InputSection.tsx     # 메시지 입력 영역
+│   │   ├── IntroSection.tsx     # 시작 화면 (사용 예시)
+│   │   ├── Message.tsx          # 개별 메시지
+│   │   ├── MessageList.tsx      # 메시지 목록
+│   │   ├── NodeStatus.tsx       # Agent 노드 상태
+│   │   ├── ResearchFindings.tsx # 출처 정보 토글
+│   │   ├── ResearchStatus.tsx   # 리서치 진행 상태
+│   │   └── Sidebar.tsx          # Thread 목록 사이드바
+│   │
+│   ├── contexts/                # React Context
+│   │   ├── AuthContext.tsx      # 인증 상태 관리
+│   │   └── ChatContext.tsx      # 채팅 상태 관리
+│   │
+│   ├── hooks/                   # Custom Hooks
+│   │   └── useSSE.ts            # SSE 스트리밍 훅
+│   │
+│   ├── pages/                   # 페이지 컴포넌트
+│   │   ├── Landing.tsx          # 랜딩 페이지
+│   │   ├── Threads.tsx          # 메인 페이지 (새 대화)
+│   │   └── Chat.tsx             # 채팅 페이지
+│   │
+│   ├── types/                   # TypeScript 타입
+│   │   └── index.ts             # 공통 타입 정의
+│   │
+│   ├── utils/                   # 유틸리티
+│   │   ├── api.ts               # API 호출 함수
+│   │   ├── env.ts               # 환경 변수
+│   │   └── markdown.ts          # 마크다운 처리
+│   │
+│   ├── App.tsx                  # 앱 진입점 + 라우팅
+│   ├── main.tsx                 # React 렌더링
+│   └── styles.css               # 전역 스타일
+│
+├── public/                      # 정적 파일
+├── index.html                   # HTML 템플릿
+├── package.json                 # 의존성
+├── tsconfig.json                # TypeScript 설정
+└── vite.config.ts               # Vite 설정
 ```
 
-## 🚀 설치 및 실행
+---
 
-### 로컬 개발 서버
+## 🔧 핵심 컴포넌트
 
-#### Python HTTP 서버
+### 1. useSSE Hook
 
-```bash
-# Python 3
-python -m http.server 8080
+**역할:** Thread별 독립적인 SSE 스트리밍 관리
 
-# Python 2
-python -m SimpleHTTPServer 8080
+```typescript
+const {
+  streamingThreads,      // 현재 스트리밍 중인 Thread Set
+  isThreadStreaming,     // 특정 Thread 스트리밍 여부
+  error,                 // 에러 상태
+  stream,                // 스트림 시작
+  cancelStream,          // 특정 Thread 스트림 취소
+  cancelAllStreams,      // 모든 스트림 취소
+} = useSSE();
 ```
 
-#### serve.sh 스크립트 사용
+**핵심 기능:**
+- Thread별 독립적인 AbortController 관리
+- 자동 재연결 없이 깔끔한 정리
+- 에러 핸들링
 
-```bash
-chmod +x serve.sh
-./serve.sh
+### 2. ChatContext
+
+**역할:** 전역 채팅 상태 관리
+
+```typescript
+const {
+  threads,            // Thread 목록
+  setThreads,         // Thread 목록 설정
+  currentThreadId,    // 현재 Thread ID
+  setCurrentThreadId, // 현재 Thread 설정
+  messages,           // 메시지 목록
+  addMessage,         // 메시지 추가
+  clearChat,          // 상태 초기화
+} = useChat();
 ```
 
-#### Node.js http-server (선택사항)
+### 3. AuthContext
 
-```bash
-npx http-server -p 8080
+**역할:** 사용자 인증 상태 관리
+
+```typescript
+const {
+  userId,             // 현재 사용자 ID
+  setUserId,          // 사용자 ID 설정
+  isLoading,          // 로딩 상태
+} = useAuth();
 ```
 
-### Docker/Nginx로 실행
+### 4. MessageList
 
-프로덕션 환경에서는 Nginx를 통해 서빙됩니다:
+**역할:** 메시지 목록 + 스트리밍 상태 표시
 
-```bash
-docker-compose up nginx
+**기능:**
+- 사용자/어시스턴트 메시지 렌더링
+- 스트리밍 중 실시간 상태 표시
+- 조건부 자동 스크롤
+- Research Findings 토글
+
+### 5. IntroSection
+
+**역할:** 사용 예시 및 시작 안내
+
+**기능:**
+- 클릭 가능한 예시 카드
+- 서비스 사용법 안내
+- 예시 클릭 시 자동 입력
+
+---
+
+## 📊 상태 관리
+
+### Thread별 상태 분리
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    App Level State                      │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ ChatContext: threads, currentThreadId           │   │
+│  │ AuthContext: userId                              │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Page Level State                      │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ Chat.tsx:                                        │   │
+│  │   • messages (local state)                       │   │
+│  │   • streamingContent                             │   │
+│  │   • nodeStatus, researchStatus, findings         │   │
+│  │   • shouldAutoScroll                             │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Hook Level State                      │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ useSSE:                                          │   │
+│  │   • streamingThreads (Set<string>)               │   │
+│  │   • streamStatesRef (Map<threadId, state>)       │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## 🏗 모듈 구조
+### SSE 이벤트 처리 흐름
 
-### 메인 애플리케이션 (`app.js`)
-
-애플리케이션 초기화 및 이벤트 흐름 관리:
-
-- API 엔드포인트 설정
-- 모듈 초기화 (StateManager, UIUpdater, EventHandlers, SSEClient)
-- 검색 버튼 및 Enter 키 이벤트 처리
-- SSE 스트리밍 요청 처리
-
-**주요 함수:**
-- `handleSearch()`: 검색 요청 처리
-- `streamAgent()`: SSE 스트리밍 에이전트 실행
-- `handleStreamEvent()`: 스트림 이벤트 라우팅
-
-### SSE 클라이언트 (`js/sseClient.js`)
-
-SSE 연결 및 파싱을 담당합니다.
-
-```javascript
-const sseClient = new SSEClient(API_STREAM_URL);
-await sseClient.stream(requestBody, (event) => {
-    handleStreamEvent(event);
-});
+```typescript
+// Chat.tsx - handleSSEEvent
+const handleSSEEvent = useCallback((event: SSEEvent) => {
+  switch (event.type) {
+    case 'thread':
+      // Thread 제목 업데이트
+      loadThreadList();
+      break;
+      
+    case 'node_start':
+      // 노드 시작 상태 표시
+      setNodeStatus({ name: event.node, status: 'in_progress' });
+      break;
+      
+    case 'text_chunk':
+      // 스트리밍 텍스트 추가
+      setStreamingContent(prev => prev + event.content);
+      break;
+      
+    case 'research_findings':
+      // 리서치 결과 저장
+      setFindings(event.findings);
+      break;
+      
+    case 'final':
+      // 최종 결과 처리
+      addMessage({ role: 'assistant', message: event.state.answer, ... });
+      setStreamingContent('');
+      break;
+  }
+}, []);
 ```
 
-**주요 기능:**
-- SSE 연결 관리
-- 이벤트 파싱
-- 에러 처리
-- 연결 종료 처리
+---
 
-### 상태 관리 (`js/stateManager.js`)
+## 🚀 v1 대비 개선사항
 
-애플리케이션 전역 상태를 관리합니다.
+### 1. 프레임워크 현대화
 
-```javascript
-const stateManager = new StateManager();
-stateManager.setSessionId(sessionId);
-stateManager.appendText(text);
-```
+| 항목 | v1 (Legacy) | v2 (현재) |
+|------|-------------|-----------|
+| 언어 | Vanilla JS | TypeScript |
+| UI | 직접 DOM 조작 | React 컴포넌트 |
+| 빌드 | 없음 (CDN) | Vite |
+| 라우팅 | 단일 페이지 | React Router |
 
-**주요 상태:**
-- `currentSessionId`: 현재 세션 ID
-- `currentText`: 스트리밍 중인 텍스트
-- `conversationHistory`: 대화 히스토리
-- `currentMessageId`: 현재 메시지 ID
-- `scopingComplete`: 요구사항 명확화 완료 여부
-- `finalState`: 최종 상태
+### 2. 타입 안정성
 
-**주요 메서드:**
-- `resetStreamingState()`: 스트리밍 상태 초기화
-- `setSessionId()` / `getSessionId()`: 세션 ID 관리
-- `addToHistory()`: 대화 히스토리 추가
-- `appendText()` / `getText()`: 텍스트 관리
+```typescript
+// v2: 완전한 타입 정의
+interface Message {
+  thread_id: string;
+  role: 'user' | 'assistant';
+  message: string;
+  timestamp?: string;
+  ended_node?: string;
+  findings?: Finding[];
+}
 
-### 이벤트 핸들러 (`js/eventHandlers.js`)
-
-SSE 이벤트 타입별 처리 로직을 담당합니다.
-
-**지원 이벤트 타입:**
-- `session`: 세션 ID 수신
-- `scoping_complete`: 요구사항 명확화 완료
-- `node_start`: 노드 시작
-- `node_complete`: 노드 완료 (writer 노드 완료 시 검색창 비활성화)
-- `research_status`: 조사 상태 업데이트
-- `research_findings`: 조사 결과
-- `text_chunk`: 텍스트 청크 (스트리밍)
-- `final`: 최종 결과
-- `error`: 에러
-
-**주요 메서드:**
-- `handleSessionEvent()`: 세션 ID 처리
-- `handleScopingCompleteEvent()`: 요구사항 명확화 완료 처리
-- `handleNodeCompleteEvent()`: 노드 완료 처리 (writer 노드 완료 시 검색창 비활성화)
-- `handleTextChunkEvent()`: 텍스트 청크 스트리밍 처리
-- `handleFinalEvent()`: 최종 결과 처리
-
-### UI 업데이트 (`js/uiUpdater.js`)
-
-UI 상태 업데이트 및 표시를 담당합니다.
-
-**주요 기능:**
-- 노드 상태 표시 (진행 중/완료)
-- 조사 상태 및 결과 표시
-- 에러 메시지 표시
-- "생각중..." 인디케이터
-- 스크롤 관리
-- 보고서 작성 완료 시 검색창 비활성화
-
-**주요 메서드:**
-- `setLoadingState()`: 로딩 상태 설정
-- `resetButtonState()`: 버튼 상태 초기화
-- `updateNodeStatus()`: 노드 상태 업데이트
-- `updateResearchStatus()`: 조사 상태 업데이트
-- `displayResearchFindings()`: 조사 결과 표시
-- `disableInput()`: 검색창 비활성화 (보고서 완료 시)
-
-### 메시지 렌더링 (`js/messageRenderer.js`)
-
-메시지 생성 및 업데이트를 담당합니다.
-
-```javascript
-// 사용자 메시지 추가
-addUserMessage(message, messagesContainer);
-
-// 어시스턴트 메시지 추가
-addAssistantMessage(initialText, messageId, messagesContainer);
-
-// 스트리밍 메시지 업데이트
-updateStreamingMessage(messageId, text, isFinal);
-```
-
-**주요 함수:**
-- `addUserMessage()`: 사용자 메시지 DOM 요소 생성
-- `addAssistantMessage()`: 어시스턴트 메시지 DOM 요소 생성
-- `updateStreamingMessage()`: 스트리밍 중인 메시지 업데이트
-
-### 마크다운 유틸리티 (`js/markdownUtils.js`)
-
-마크다운 파싱 및 Mermaid 다이어그램 처리를 담당합니다.
-
-```javascript
-// 마크다운 및 Mermaid 처리
-const html = processMarkdownWithMermaid(text);
-
-// Mermaid 다이어그램 렌더링
-renderMermaidDiagrams(container);
-```
-
-**주요 함수:**
-- `safeMarkdownParse()`: 안전한 마크다운 파싱
-- `processMermaidBlocks()`: Mermaid 코드 블록 처리
-- `renderMermaidDiagrams()`: Mermaid 다이어그램 렌더링
-- `processMarkdownWithMermaid()`: 통합 처리
-- `escapeHtml()`: HTML 이스케이프
-
-## 🎨 UI 기능
-
-### 실시간 스트리밍
-
-- SSE를 통한 실시간 텍스트 스트리밍
-- 노드별 진행 상황 표시
-- 조사 상태 및 결과 실시간 업데이트
-
-### 마크다운 지원
-
-- 마크다운 문법 지원
-- 코드 블록 하이라이팅
-- 링크, 리스트, 테이블 등 지원
-
-### Mermaid 다이어그램
-
-- Mermaid 코드 블록 자동 렌더링
-- 플로우차트, 시퀀스 다이어그램 등 지원
-- 지연 렌더링으로 성능 최적화
-
-### 조사 결과 표시
-
-- 토글 가능한 조사 내용 섹션
-- 검색 결과 미리보기 (링크 및 스니펫)
-- 논문 및 웹 검색 결과 구분 표시
-
-
-## 🔧 개발 가이드
-
-### 새로운 이벤트 타입 추가
-
-1. `js/eventHandlers.js`의 `EventHandlers` 클래스에 새 메서드 추가:
-
-```javascript
-handleNewEventType(event) {
-    // 이벤트 처리 로직
-    this.ui.updateSomething(event.data);
+interface SSEEvent {
+  type: 'thread' | 'node_start' | 'text_chunk' | 'final' | ...;
+  // type별 추가 필드
 }
 ```
 
-2. `app.js`의 `handleStreamEvent()` 함수에 케이스 추가:
+### 3. Thread별 독립 라우팅
 
-```javascript
-case 'new_event_type':
-    eventHandlers.handleNewEventType(event);
-    break;
+```
+v1: domain.com/ (단일 페이지, 모든 상태 전역)
+v2: domain.com/chat/:threadId (Thread별 독립 페이지)
 ```
 
-### UI 컴포넌트 추가
+**장점:**
+- Thread별 독립적인 상태 관리
+- 뒤로가기/앞으로가기 지원
+- URL 공유 가능
+- 브라우저 히스토리 활용
 
-`js/uiUpdater.js`의 `UIUpdater` 클래스에 새 메서드 추가:
+### 4. 실시간 상태 표시
 
-```javascript
-updateNewComponent(data) {
-    const messageId = this.state.getCurrentMessageId();
-    // UI 업데이트 로직
+| 컴포넌트 | 기능 |
+|----------|------|
+| `NodeStatus` | 현재 실행 중인 Agent 노드 표시 |
+| `ResearchStatus` | 리서치 진행 상황 (검색 쿼리, 결과) |
+| `ResearchFindings` | 출처 정보 토글 표시 |
+
+### 5. 조건부 자동 스크롤
+
+```typescript
+const handleScroll = useCallback(() => {
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  // 하단 50px 이내면 자동 스크롤, 그렇지 않으면 비활성화
+  setShouldAutoScroll(distanceFromBottom < 50);
+}, []);
+```
+
+### 6. 응답 중지 기능
+
+- 전송 버튼 → 중지 버튼 전환
+- SSE 연결 끊기 + 백엔드 Task 취소
+- 부분 응답 저장
+
+### 7. 사용 예시 UI
+
+- 클릭 가능한 예시 카드 4개
+- 카드 클릭 시 자동 입력 및 전송
+- 반응형 그리드 (데스크탑 2열, 모바일 1열)
+
+---
+
+## 🔧 설치 및 실행
+
+### 로컬 개발
+
+```bash
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
+
+# 빌드
+npm run build
+
+# 프리뷰
+npm run preview
+```
+
+### 환경 변수
+
+```bash
+# .env (선택사항)
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+---
+
+## 📝 개발 가이드
+
+### 새로운 컴포넌트 추가
+
+1. `src/components/`에 `.tsx` 파일 생성
+2. Props 타입 정의
+3. 필요시 `src/types/index.ts`에 타입 추가
+
+```typescript
+// 예: src/components/MyComponent.tsx
+import React from 'react';
+
+interface MyComponentProps {
+  title: string;
+  onClick?: () => void;
 }
-```
 
-### 스타일 수정
-
-`styles.css` 파일을 수정하여 스타일을 변경할 수 있습니다.
-
-주요 CSS 클래스:
-- `.message`: 메시지 컨테이너
-- `.user-message`: 사용자 메시지
-- `.assistant-message`: 어시스턴트 메시지
-- `.node-status`: 노드 상태 표시
-- `.research-status-container`: 조사 상태 컨테이너
-- `.research-findings-container`: 조사 결과 컨테이너
-
-## 📡 API 통신
-
-### 엔드포인트 설정
-
-`app.js`에서 API 엔드포인트를 설정합니다:
-
-```javascript
-const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE_URL = isLocalDev ? 'http://localhost:8000' : window.location.origin;
-const API_STREAM_URL = API_BASE_URL + '/api/chat/stream';
-```
-
-### 요청 형식
-
-```javascript
-const requestBody = {
-    user_message: "분석하고 싶은 주제",
-    session_id: "optional-session-id"
+export const MyComponent: React.FC<MyComponentProps> = ({ title, onClick }) => {
+  return (
+    <div onClick={onClick}>
+      <h3>{title}</h3>
+    </div>
+  );
 };
 ```
 
-### SSE 이벤트 형식
+### 새로운 페이지 추가
 
-```javascript
-{
-    type: "event_type",
-    data: {...}
-}
+1. `src/pages/`에 페이지 컴포넌트 생성
+2. `src/App.tsx`에 Route 추가
+
+```typescript
+// App.tsx
+<Routes>
+  <Route path="/new-page" element={<NewPage />} />
+</Routes>
 ```
 
-## 🎯 주요 기능 상세
+### SSE 이벤트 타입 추가
 
-### 세션 관리
+1. `src/types/index.ts`에 이벤트 타입 추가
+2. `src/pages/Chat.tsx`의 `handleSSEEvent`에 케이스 추가
 
-- 자동 세션 ID 생성 및 관리
-- 대화 히스토리 유지
-- 세션별 컨텍스트 보존
+```typescript
+// types/index.ts
+export interface MyNewEvent extends SSEEvent {
+  type: 'my_new_event';
+  data: string;
+}
 
-### 에러 처리
+// Chat.tsx
+case 'my_new_event':
+  console.log('New event:', event.data);
+  break;
+```
 
-- 네트워크 에러 처리
-- 파싱 에러 처리
-- 사용자 친화적 에러 메시지 표시
+### 스타일 가이드
 
-### 성능 최적화
+- 전역 스타일: `src/styles.css`
+- BEM-like 네이밍: `.component-name`, `.component-name__element`
+- CSS 변수 활용: `var(--primary-color)`
+- 반응형: `@media (max-width: 768px)`
 
-- 메시지 렌더링 최적화
-- Mermaid 다이어그램 지연 렌더링
-- 스크롤 최적화
+---
 
-### 보고서 완료 처리
+## 📊 성능 최적화
 
-- writer 노드 완료 감지
-- 검색창 및 전송 버튼 자동 비활성화
-- 사용자에게 완료 상태 명확히 표시
+### 적용된 최적화
 
-## 🐛 문제 해결
+| 기법 | 적용 위치 | 효과 |
+|------|----------|------|
+| `useCallback` | 이벤트 핸들러 | 불필요한 리렌더링 방지 |
+| `useRef` | DOM 참조, 상태 추적 | 리렌더링 없이 값 유지 |
+| Conditional Rendering | 상태 컴포넌트 | 불필요한 DOM 생성 방지 |
+| Code Splitting | React Router | 초기 번들 크기 감소 |
 
-### Mermaid 다이어그램이 렌더링되지 않음
+### 향후 개선 가능
 
-- Mermaid.js 라이브러리가 로드되었는지 확인
-- 브라우저 콘솔에서 에러 확인
-- `data-processed` 속성 확인
-- `renderMermaidDiagrams()` 함수가 올바르게 호출되는지 확인
+- [ ] React.memo로 컴포넌트 메모이제이션
+- [ ] useMemo로 계산 결과 캐싱
+- [ ] Intersection Observer로 무한 스크롤
+- [ ] Service Worker로 오프라인 지원
 
-### SSE 연결 실패
+---
 
-- 백엔드 서버가 실행 중인지 확인
-- CORS 설정 확인
-- 네트워크 탭에서 SSE 스트림 확인
-- `sseClient.js`의 연결 로직 확인
-
-### 마크다운이 제대로 파싱되지 않음
-
-- Marked.js 라이브러리가 로드되었는지 확인
-- 백틱 문제는 자동으로 수정됨
-- 브라우저 콘솔에서 경고 확인
-- `markdownUtils.js`의 파싱 로직 확인
-
-### 검색창이 비활성화되지 않음
-
-- writer 노드 완료 이벤트가 올바르게 수신되는지 확인
-- `eventHandlers.js`의 `handleNodeCompleteEvent()` 확인
-- `uiUpdater.js`의 `disableInput()` 메서드 확인
-
-### 스트리밍이 중간에 멈춤
-
-- 네트워크 연결 확인
-- 백엔드 로그 확인
-- 브라우저 개발자 도구에서 SSE 연결 상태 확인
-- `sseClient.js`의 에러 처리 확인
-
-## 📚 참고 자료
-
-- [Marked.js 문서](https://marked.js.org/)
-- [Mermaid.js 문서](https://mermaid.js.org/)
-- [SSE 스펙](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
-- [Vanilla JavaScript 가이드](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-
-## 🔄 리팩토링 히스토리
-
-최근 대규모 리팩토링을 통해 코드 구조를 개선했습니다:
-
-- **이전**: 899줄의 단일 `app.js` 파일
-- **현재**: 모듈화된 구조로 분리
-  - SSE 클라이언트 분리
-  - 상태 관리 클래스화
-  - 이벤트 핸들러 분리
-  - UI 업데이트 로직 분리
-  - 마크다운 유틸리티 모듈화
-
-이를 통해 코드 가독성, 유지보수성, 테스트 용이성이 크게 향상되었습니다.
-
+**버전:** 2.0.0  
+**최종 업데이트:** 2026년 1월

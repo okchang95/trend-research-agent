@@ -15,11 +15,11 @@ from pydantic import BaseModel, Field
 
 from app.agents.state import AgentState
 from app.agents.prompts import SCOPING_SYSTEM_PROMPT, SCOPING_USER_PROMPT
-from app.core.config import Config
+from app.core.config import get_config
 from app.core.llm import SCOPING_LLM
 
 logger = logging.getLogger(__name__)
-config = Config()
+config = get_config()
 
 
 class OutputFormat(BaseModel):
@@ -54,6 +54,8 @@ class OutputFormat(BaseModel):
 
 
 async def clarify_requirement(state: AgentState):
+    state["current_node"] = "scoping"
+
     # 체인 설정
     prompt = ChatPromptTemplate(
         messages=[
