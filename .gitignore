@@ -40,9 +40,9 @@ htmlcov/
 # 기타
 .DS_Store
 *.pyc
-trash/
 docs/
-backend/legacy/
+legacy/
+legacy_v1/
 
 # Docker
 .dockerignore
