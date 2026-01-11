@@ -76,21 +76,29 @@ export const Chat: React.FC = () => {
     }
   }, [userId, loadThreadList, clearChat]);
 
-  // 현재 thread의 generating 상태 확인 및 polling (새로고침/재진입 시 작동)
+  // 현재 thread의 generating 상태 확인 및 polling (재진입 시에만 작동)
   useEffect(() => {
     if (!currentThreadId || threads.length === 0 || !userId) return;
 
     const currentThread = threads.find(t => t.thread_id === currentThreadId);
     
-    if (currentThread?.status === 'generating') {
-      // 응답 생성 중 표시 (NodeStatus만 사용, streamingContent는 비워둠)
+    // ✅ 스트리밍 중이 아닐 때만 polling 시작 (재진입 시에만)
+    if (currentThread?.status === 'generating' && !isStreaming) {
+      // 응답 생성 중 표시 (재진입한 경우)
       setStreamingContent('');
       setNodeStatus({ name: 'generating', status: 'in_progress' });
-      console.log(`Thread ${currentThreadId} is generating, starting polling`);
+      console.log(`Thread ${currentThreadId} is generating (re-entered), starting polling`);
 
       // 3초마다 polling하여 status 확인
       const pollInterval = setInterval(async () => {
         try {
+          // currentThreadIdRef를 사용하여 polling 중에도 안전하게 처리
+          const currentId = currentThreadIdRef.current;
+          if (!currentId) {
+            clearInterval(pollInterval);
+            return;
+          }
+
           // Thread list 새로고침
           const threadList = await getThreads(userId);
           const sortedThreads = threadList.sort((a, b) => {
@@ -98,16 +106,15 @@ export const Chat: React.FC = () => {
             const dateB = new Date(b.updated_at);
             return dateB.getTime() - dateA.getTime();
           });
-          setThreads(sortedThreads);
 
           // 현재 thread의 status 확인
-          const updatedThread = sortedThreads.find(t => t.thread_id === currentThreadId);
+          const updatedThread = sortedThreads.find(t => t.thread_id === currentId);
           
           if (updatedThread && updatedThread.status !== 'generating') {
             // 생성 완료! 메시지 다시 로드
-            console.log(`Thread ${currentThreadId} completed (status: ${updatedThread.status}), reloading messages`);
+            console.log(`Thread ${currentId} completed (status: ${updatedThread.status}), reloading messages`);
             
-            const threadMessages = await getThreadMessages(currentThreadId);
+            const threadMessages = await getThreadMessages(currentId);
             const sortedMessages = threadMessages.sort((a, b) => {
               const dateA = new Date(a.timestamp);
               const dateB = new Date(b.timestamp);
@@ -115,14 +122,20 @@ export const Chat: React.FC = () => {
             });
             setMessages(sortedMessages);
             
+            // ✅ 완료 시에만 threads 업데이트 (useEffect 재실행 방지)
+            setThreads(sortedThreads);
+            
             // 상태 초기화
             setStreamingContent('');
             setNodeStatus(null);
             setResearchStatus(null);
             setFindings([]);
             
+            // polling 중지
+            clearInterval(pollInterval);
             console.log('Polling stopped - generation completed');
           }
+          // ✅ polling 중에는 threads를 업데이트하지 않음 (useEffect 재실행 방지)
         } catch (error) {
           console.error('Polling error:', error);
         }
@@ -133,12 +146,12 @@ export const Chat: React.FC = () => {
         console.log(`Polling cleanup for thread ${currentThreadId}`);
         clearInterval(pollInterval);
       };
-    } else if (currentThread) {
-      // generating 상태가 아니면 초기화
+    } else if (currentThread && !isStreaming) {
+      // generating 상태가 아니고 스트리밍 중이 아닐 때만 초기화
       setStreamingContent('');
       setNodeStatus(null);
     }
-  }, [currentThreadId, threads, userId, setThreads, setMessages]);
+  }, [currentThreadId, threads, userId, setThreads, setMessages, isStreaming]);
 
   // Thread 선택 시 메시지 로드
   const handleThreadSelect = async (threadId: string) => {
@@ -152,29 +165,42 @@ export const Chat: React.FC = () => {
       });
       setThreads(sortedThreads);
       
-      const threadMessages = await getThreadMessages(threadId);
-      // 시간순으로 정렬
-      const sortedMessages = threadMessages.sort((a, b) => {
-        const dateA = new Date(a.timestamp);
-        const dateB = new Date(b.timestamp);
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      setMessages(sortedMessages);
-      setShowIntro(false);
-      
-      // 선택한 thread의 상태 확인
+      // ✅ status를 먼저 확인
       const selectedThread = sortedThreads.find(t => t.thread_id === threadId);
+      
       if (selectedThread?.status === 'generating') {
-        // 응답 생성 중인 thread를 선택한 경우 (NodeStatus만 사용)
-        console.log(`Thread ${threadId} is generating, showing status`);
+        // generating 상태: 기존 메시지는 표시하고, polling으로 완료 감지
+        console.log(`Thread ${threadId} is generating, loading existing messages`);
+        
+        // 기존 메시지 로드 (완료되면 polling에서 업데이트)
+        const threadMessages = await getThreadMessages(threadId);
+        const sortedMessages = threadMessages.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateA.getTime() - dateB.getTime();
+        });
+        setMessages(sortedMessages);
+        setShowIntro(false);
+        
+        // generating 상태 표시
         setStreamingContent('');
         setNodeStatus({ name: 'generating', status: 'in_progress' });
       } else {
+        // completed/idle 상태: 메시지 로드
+        const threadMessages = await getThreadMessages(threadId);
+        const sortedMessages = threadMessages.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateA.getTime() - dateB.getTime();
+        });
+        setMessages(sortedMessages);
+        setShowIntro(false);
+        
         // 스트리밍 상태 초기화
         setStreamingContent('');
         setNodeStatus(null);
       }
+      
       setResearchStatus(null);
       setFindings([]);
       
