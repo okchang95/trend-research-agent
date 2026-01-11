@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Message } from './Message';
 import { NodeStatus } from './NodeStatus';
 import { ResearchStatus } from './ResearchStatus';
@@ -13,6 +13,7 @@ interface MessageListProps {
   nodeStatus?: { name: string; status: 'in_progress' | 'completed' } | null;
   researchStatus?: { message: string; results?: SearchResult[] } | null;
   findings?: Finding[];
+  scrollTrigger?: number; // 메시지 전송 시 증가하는 트리거
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -22,68 +23,25 @@ export const MessageList: React.FC<MessageListProps> = ({
   nodeStatus = null,
   researchStatus = null,
   findings = [],
+  scrollTrigger = 0,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMessageRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // 메시지 컨테이너의 스크롤 위치 감지
-  const handleScroll = useCallback(() => {
-    if (!messagesContainerRef.current) return;
-    
-    const container = messagesContainerRef.current;
-    const scrollTop = container.scrollTop;
-    const scrollHeight = container.scrollHeight;
-    const clientHeight = container.clientHeight;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    
-    // 하단에서 100px 이상 떨어지면 자동 스크롤 비활성화
-    // 50px 이내면 자동 스크롤 활성화
-    setShouldAutoScroll(distanceFromBottom < 50);
-  }, []);
-
-  // 스크롤 이벤트 리스너 등록
+  // 메시지 전송 시에만 마지막 사용자 메시지가 화면 상단에 오도록 스크롤
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
-
-  // 새 메시지가 추가되면 스크롤을 맨 아래로 (자동 스크롤이 활성화된 경우만)
-  useEffect(() => {
-    if (shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (scrollTrigger > 0 && lastUserMessageRef.current && messagesContainerRef.current) {
+      // 약간의 지연을 두어 렌더링 완료 후 스크롤
+      setTimeout(() => {
+        lastUserMessageRef.current?.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'  // 화면 상단에 위치
+        });
+      }, 100);
     }
-  }, [messages, streamingContent, shouldAutoScroll]);
-
-  // 키보드가 열릴 때 스크롤을 하단으로 유지
-  useEffect(() => {
-    const handleResize = () => {
-      // 키보드가 열리거나 닫힐 때 (viewport height 변경)
-      if (shouldAutoScroll && messagesEndRef.current) {
-        // 약간의 지연을 두어 레이아웃이 완료된 후 스크롤
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    // visualViewport API 사용 (모바일 키보드 감지)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
-    }
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize);
-      }
-    };
-  }, [shouldAutoScroll]);
+  }, [scrollTrigger]);
 
   // 스트리밍 메시지의 마크다운 렌더링
   useEffect(() => {
@@ -119,23 +77,35 @@ export const MessageList: React.FC<MessageListProps> = ({
     );
   };
 
+  // 마지막 user 메시지 인덱스 찾기
+  const lastUserMessageIndex = messages.reduce((lastIndex, msg, index) => {
+    return msg.role === 'user' ? index : lastIndex;
+  }, -1);
+
   return (
     <div className="messages-container" ref={messagesContainerRef}>
-      {messages.map((msg, index) => (
-        <div key={index}>
-          <Message role={msg.role} content={msg.message} />
-          {/* writer 노드에서 종료된 메시지에만 findings를 별도 블록으로 표시 */}
-          {msg.role === 'assistant' && msg.ended_node === 'writer' && msg.findings && msg.findings.length > 0 && (
-            <div className="message assistant-message">
-              <div className="message-content">
-                <div className="message-text">
-                  <ResearchFindings findings={msg.findings} />
+      {messages.map((msg, index) => {
+        const isLastUserMessage = msg.role === 'user' && index === lastUserMessageIndex;
+        
+        return (
+          <div 
+            key={index}
+            ref={isLastUserMessage ? lastUserMessageRef : undefined}
+          >
+            <Message role={msg.role} content={msg.message} />
+            {/* writer 노드에서 종료된 메시지에만 findings를 별도 블록으로 표시 */}
+            {msg.role === 'assistant' && msg.ended_node === 'writer' && msg.findings && msg.findings.length > 0 && (
+              <div className="message assistant-message">
+                <div className="message-content">
+                  <div className="message-text">
+                    <ResearchFindings findings={msg.findings} />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
       {isStreaming && (
         <div className="message assistant-message">
           <div className="message-content">
