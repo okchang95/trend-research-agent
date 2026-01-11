@@ -22,6 +22,7 @@ export const Chat: React.FC = () => {
   const [nodeStatus, setNodeStatus] = useState<{ name: string; status: 'in_progress' | 'completed' } | null>(null);
   const [researchStatus, setResearchStatus] = useState<{ message: string; results?: SearchResult[] } | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // 로그인 체크
   useEffect(() => {
@@ -39,8 +40,10 @@ export const Chat: React.FC = () => {
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
       setThreads(sortedThreads);
+      setInitialLoadComplete(true);
     } catch (error) {
       console.error('Error loading threads:', error);
+      setInitialLoadComplete(true);
     }
   }, [userId, setThreads]);
 
@@ -79,16 +82,22 @@ export const Chat: React.FC = () => {
     }
   }, [threadId, userId, loadThreadMessages]);
 
-  // Thread 유효성 검사
+  // Thread 유효성 검사 (초기 로딩 완료 후에만)
   useEffect(() => {
-    if (threads.length > 0 && threadId) {
-      const exists = threads.some(t => t.thread_id === threadId);
-      if (!exists) {
-        alert('존재하지 않는 대화입니다.');
-        navigate('/chat');
+    // 초기 로딩이 완료되고, threadId가 있을 때만 검증
+    if (initialLoadComplete && threadId) {
+      // threads 목록이 비어있지 않은 경우에만 검증
+      // (빈 경우는 아직 로드 중이거나 threads가 없는 상태)
+      if (threads.length > 0) {
+        const exists = threads.some(t => t.thread_id === threadId);
+        if (!exists) {
+          console.warn(`Thread ${threadId} not found in user's threads`);
+          alert('존재하지 않는 대화입니다.');
+          navigate('/chat');
+        }
       }
     }
-  }, [threads, threadId, navigate]);
+  }, [threads, threadId, navigate, initialLoadComplete]);
 
   // Generating 상태 확인 및 polling
   useEffect(() => {
