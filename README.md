@@ -86,8 +86,7 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 - **LangChain** `1.2.0` - LLM 통합 및 도구 사용
 - **LangChain OpenAI** `1.1.6` - OpenAI 통합
 - **LangChain Tavily** `0.2.16` - Tavily 검색 통합
-- **MongoDB** `4.16.0` (pymongo) - 데이터 영구 저장
-- **Motor** (async driver) - 비동기 MongoDB 드라이버
+- **MongoDB** `8.2` (pymongo) - 데이터 영구 저장
 - **OpenAI** `2.14.0` - GPT 모델 API (gpt-4.1-mini, gpt-4o-mini)
 - **Tavily** - 웹 검색 API
 - **ArXiv** `2.3.1` - 학술 논문 검색
