@@ -389,5 +389,6 @@ class StreamEventHandler:
                 "is_clarified": self.state.final_state.get("is_clarified", False),
                 "subject": self.state.final_state.get("subject", ""),
                 "scope": self.state.final_state.get("scope", ""),
+                "findings": self.state.final_state.get("findings", []),
             },
         }
