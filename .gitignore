@@ -40,7 +40,6 @@ htmlcov/
 # 기타
 .DS_Store
 *.pyc
-docs/
 legacy/
 legacy_v1/
 

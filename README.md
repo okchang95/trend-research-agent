@@ -3,7 +3,7 @@
 LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트 서비스입니다.  
 사용자의 요구사항을 이해하고, 최신 정보를 수집하여 전문적인 마크다운 형식의 종합 보고서를 생성합니다.
 
-> 🔄 **v2.0** - 이 버전은 [legacy_v1](./legacy_v1/)에서 **대폭 개선된 버전**입니다.
+> 🔄 **v2.0** - 이 버전은 v1에서 **대폭 개선된 버전**입니다. (v1은 별도 브랜치 참조)
 
 ## 📋 목차
 
@@ -15,6 +15,7 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 - [설치 및 실행](#설치-및-실행)
 - [사용 예시](#사용-예시)
 - [API 문서](#api-문서)
+- [추가 문서](#추가-문서)
 - [향후 개선 계획](#향후-개선-계획)
 
 ---
@@ -51,38 +52,30 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 
 ## 🚀 v1 대비 개선사항
 
-### Frontend 개선
+### 주요 개선 영역
 
-| 항목 | v1 (Legacy) | v2 (현재) |
-|------|-------------|-----------|
-| **프레임워크** | Vanilla JS | React 18 + TypeScript |
-| **빌드 도구** | 없음 (CDN) | Vite |
-| **상태 관리** | 전역 변수 | Context API + Custom Hooks |
-| **라우팅** | 단일 페이지 | React Router (Thread별 URL) |
-| **타입 안정성** | 없음 | TypeScript 완벽 지원 |
+| 영역 | 핵심 개선사항 |
+|------|--------------|
+| 🎨 **Frontend** | Vanilla JS → React + TypeScript, Thread별 독립 라우팅 |
+| ⚙️ **Backend** | 메모리 세션 → MongoDB 영구 저장, Repository 패턴 |
+| 🔄 **안정성** | 새로고침 시 데이터 유실 방지, 백그라운드 Task 관리 |
+| 🎯 **UX** | 실시간 상태 표시, 응답 중지, 스마트 스크롤 |
 
-### Backend 개선
+### 10가지 핵심 개선
 
-| 항목 | v1 (Legacy) | v2 (현재) |
-|------|-------------|-----------|
-| **데이터 저장** | 세션 기반 (메모리) | MongoDB 영구 저장 |
-| **아키텍처** | 단일 모듈 | Repository + Service 패턴 |
-| **Thread 관리** | 없음 | CRUD + 상태 관리 |
-| **사용자 관리** | 없음 | User 시스템 |
-| **백그라운드 처리** | 없음 | asyncio.Task + Queue 패턴 |
+1. ✅ **SSE 중간 상태 출력** - 노드/리서치 상태 실시간 표시
+2. ✅ **조건부 자동 스크롤** - 사용자 스크롤 시 비활성화
+3. ✅ **UI 레이아웃 개선** - ChatGPT 스타일 미니멀 디자인
+4. ✅ **Findings 영구 저장** - 출처 정보 DB 저장
+5. ✅ **응답 중지 버튼** - Agent 즉시 중단, API 비용 절약
+6. ✅ **Thread 상태 관리** - IDLE/GENERATING/COMPLETED/ERROR
+7. ✅ **비동기 + 큐 패턴** - 새로고침해도 백그라운드 계속 실행
+8. ✅ **Task 취소 기능** - cancel_event로 LangGraph 내부까지 전파
+9. ✅ **Thread별 독립 라우팅** - URL 기반 Thread 관리
+10. ✅ **사용 예시 UI** - 클릭 가능한 예시 카드
 
-### UX/안정성 개선
-
-| 개선 항목 | 설명 |
-|----------|------|
-| 🔄 **새로고침 안정성** | 새로고침해도 백그라운드에서 Agent 계속 실행, DB 저장 보장 |
-| ⏹️ **응답 중지** | 중지 버튼 클릭 시 Agent 즉시 중단, 불필요한 API 비용 절약 |
-| 📊 **실시간 상태** | 노드 상태, 리서치 진행 상황 실시간 표시 |
-| 📜 **스마트 스크롤** | 조건부 자동 스크롤 (사용자 스크롤 시 비활성화) |
-| 💾 **Findings 저장** | 출처 정보 DB에 영구 저장, 새로고침 후에도 확인 가능 |
-| 🔒 **권한 관리** | Thread 소유자만 접근 가능 |
-
-> 📝 상세 개선사항은 [IMPROVEMENTS.md](./IMPROVEMENTS.md) 참조
+> 📝 **상세 개선사항**: [IMPROVEMENTS.md](./docs/IMPROVEMENTS.md)  
+> 각 개선사항의 문제 인식, 해결 방법, 결과를 SAR 형식으로 정리했습니다.
 
 ---
 
@@ -96,7 +89,7 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 - **LangChain Tavily** `0.2.16` - Tavily 검색 통합
 - **MongoDB** `4.16.0` (pymongo) - 데이터 영구 저장
 - **Motor** (async driver) - 비동기 MongoDB 드라이버
-- **OpenAI** `2.14.0` - GPT 모델 API (gpt-4o, gpt-4o-mini)
+- **OpenAI** `2.14.0` - GPT 모델 API (gpt-4.1-mini, gpt-4o-mini)
 - **Tavily** - 웹 검색 API
 - **ArXiv** `2.3.1` - 학술 논문 검색
 - **Pydantic** `2.12.5` - 데이터 검증 및 직렬화
@@ -234,9 +227,7 @@ LangGraph를 활용한 연구 및 기술 트렌드 분석 전문 AI 에이전트
 │   └── README.md              # 프론트엔드 상세 문서
 │
 ├── nginx/                      # Nginx 설정
-├── docs/                       # 추가 문서
-├── legacy_v1/                  # 이전 버전 (참고용)
-├── IMPROVEMENTS.md             # 상세 개선사항 문서
+├── docs/                       # 추가 문서 (배포 가이드 등)
 └── docker-compose.*.yml        # Docker 설정
 ```
 
@@ -326,6 +317,19 @@ npm run dev
 | POST | `/api/chat/cancel-task` | 백그라운드 작업 취소 |
 
 자세한 API 문서는 `http://localhost:8000/docs` (Swagger UI) 참조
+
+---
+
+## 📚 추가 문서
+
+프로젝트의 상세 정보는 다음 문서를 참조하세요:
+
+| 문서 | 설명 |
+|------|------|
+| [IMPROVEMENTS.md](./docs/IMPROVEMENTS.md) | v1 대비 개선사항 (SAR 형식) |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 시스템 아키텍처 상세 설명 |
+| [Backend README](./backend/README.md) | 백엔드 구현 상세 |
+| [Frontend README](./frontend/README.md) | 프론트엔드 구현 상세 |
 
 ---
 
