@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import { useSSE } from '../hooks/useSSE';
@@ -13,16 +13,33 @@ import { Message, SSEEvent, SearchResult, Finding } from '../types';
 export const Chat: React.FC = () => {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId, isAuthenticated } = useAuth();
   const { threads, setThreads, setMessages, addMessage } = useChat();
-  const { isThreadStreaming, stream, cancelStream } = useSSE();
+  const { streamingThreads, isThreadStreaming, stream, cancelStream } = useSSE();
 
-  const [messages, setLocalMessages] = useState<Message[]>([]);
+  // 초기 메시지가 있으면 즉시 화면에 표시 (낙관적 업데이트)
+  const [messages, setLocalMessages] = useState<Message[]>(() => {
+    const initialMessage = location.state?.initialMessage;
+    if (initialMessage && threadId) {
+      console.log('Displaying initial message immediately:', initialMessage);
+      return [{
+        thread_id: threadId,
+        role: 'user',
+        message: initialMessage,
+        timestamp: new Date().toISOString(),
+      }];
+    }
+    return [];
+  });
+  
   const [streamingContent, setStreamingContent] = useState('');
   const [nodeStatus, setNodeStatus] = useState<{ name: string; status: 'in_progress' | 'completed' } | null>(null);
   const [researchStatus, setResearchStatus] = useState<{ message: string; results?: SearchResult[] } | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const initialMessageSentRef = useRef(false);
+  const lastThreadIdRef = useRef<string | null>(null);
 
   // 로그인 체크
   useEffect(() => {
@@ -75,12 +92,21 @@ export const Chat: React.FC = () => {
     }
   }, [userId, loadThreadList]);
 
-  // Thread 메시지 로드 (threadId 변경 시)
+  // Thread 변경 시 ref 리셋
   useEffect(() => {
-    if (threadId && userId) {
+    if (threadId !== lastThreadIdRef.current) {
+      initialMessageSentRef.current = false;
+      lastThreadIdRef.current = threadId || null;
+    }
+  }, [threadId]);
+
+  // Thread 메시지 로드 (threadId 변경 시)
+  // 단, 초기 메시지가 있거나 전송 중이 아닐 때만
+  useEffect(() => {
+    if (threadId && userId && !initialMessageSentRef.current && !location.state?.initialMessage) {
       loadThreadMessages(threadId);
     }
-  }, [threadId, userId, loadThreadMessages]);
+  }, [threadId, userId, loadThreadMessages, location.state]);
 
   // Thread 유효성 검사 (초기 로딩 완료 후에만)
   useEffect(() => {
@@ -149,26 +175,17 @@ export const Chat: React.FC = () => {
     };
   }, [threads, threadId]);
 
-  // Thread 선택 → URL 변경
-  const handleThreadSelect = (selectedThreadId: string) => {
-    navigate(`/chat/${selectedThreadId}`);
-  };
-
-  // 새 대화
-  const handleNewThread = () => {
-    navigate('/chat');
-  };
-
-  // 홈으로
-  const handleGoHome = () => {
-    navigate('/chat');
-  };
-
   // SSE 이벤트 처리
   const handleSSEEvent = useCallback((event: SSEEvent) => {
     console.log('SSE Event:', event);
 
     switch (event.type) {
+      case 'thread':
+        // Thread 제목 업데이트 이벤트
+        console.log('Thread title updated:', event.title);
+        loadThreadList();
+        break;
+
       case 'node_start':
         setNodeStatus({ name: event.node, status: 'in_progress' });
         break;
@@ -221,6 +238,70 @@ export const Chat: React.FC = () => {
         break;
     }
   }, [threadId, addMessage, loadThreadList]);
+
+  // 초기 메시지 자동 전송 (Threads.tsx에서 navigate로 전달받은 경우)
+  useEffect(() => {
+    const initialMsg = location.state?.initialMessage;
+    
+    if (
+      initialMsg && 
+      threadId && 
+      userId && 
+      !initialMessageSentRef.current
+    ) {
+      console.log('Auto-sending initial message:', initialMsg);
+      initialMessageSentRef.current = true;
+      
+      // state 정리 (뒤로가기 시 재전송 방지)
+      navigate(location.pathname, { replace: true, state: {} });
+      
+      // Thread 목록 새로고침 (새로 생성된 thread를 목록에 추가)
+      loadThreadList();
+      
+      // 유저 메시지는 이미 useState 초기화에서 추가됨
+      // Context에만 추가
+      const userMessage: Message = {
+        thread_id: threadId,
+        role: 'user',
+        message: initialMsg,
+        timestamp: new Date().toISOString(),
+      };
+      addMessage(userMessage);
+
+      // 스트리밍 상태 초기화
+      setStreamingContent('');
+      setNodeStatus(null);
+      setResearchStatus(null);
+      setFindings([]);
+
+      // 스트리밍 시작
+      const requestBody = {
+        user_id: userId,
+        thread_id: threadId,
+        user_message: initialMsg,
+      };
+
+      stream(threadId, requestBody, handleSSEEvent).catch(error => {
+        console.error('Initial stream error:', error);
+        alert('스트리밍 중 오류가 발생했습니다.');
+      });
+    }
+  }, [location.state, threadId, userId, addMessage, stream, navigate, handleSSEEvent, loadThreadList]);
+
+  // Thread 선택 → URL 변경
+  const handleThreadSelect = (selectedThreadId: string) => {
+    navigate(`/chat/${selectedThreadId}`);
+  };
+
+  // 새 대화
+  const handleNewThread = () => {
+    navigate('/chat');
+  };
+
+  // 홈으로
+  const handleGoHome = () => {
+    navigate('/chat');
+  };
 
   // 메시지 전송
   const handleSendMessage = async (message: string) => {
@@ -297,6 +378,7 @@ export const Chat: React.FC = () => {
       <Sidebar
         threads={threads}
         currentThreadId={threadId}
+        streamingThreads={streamingThreads}
         onThreadSelect={handleThreadSelect}
         onNewThread={handleNewThread}
         onGoHome={handleGoHome}

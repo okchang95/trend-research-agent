@@ -304,9 +304,10 @@ class ChatService:
             await self._repo_chat_message.create(user_message_obj)
 
             # --------------------------------------------------------------------------------------------
-            # 3. 제목 생성 (if first message)
+            # 3. 제목 생성 (if first message or still "New Thread")
             # --------------------------------------------------------------------------------------------
-            if is_new_thread:
+            # 새 thread이거나, 제목이 아직 "New Thread"인 경우 제목 생성
+            if is_new_thread or thread.get("title") == "New Thread":
                 # 취소 체크
                 if cancel_event.is_set():
                     logger.info(

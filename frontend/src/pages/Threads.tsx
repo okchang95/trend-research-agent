@@ -3,19 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import { useSSE } from '../hooks/useSSE';
-import { getThreads } from '../utils/api';
+import { getThreads, createThread } from '../utils/api';
 import { Sidebar } from '../components/Sidebar';
 import { IntroSection } from '../components/IntroSection';
 import { InputSection } from '../components/InputSection';
-import { SSEEvent } from '../types';
 
 export const Threads: React.FC = () => {
   const navigate = useNavigate();
   const { userId, isAuthenticated } = useAuth();
   const { threads, setThreads, clearChat } = useChat();
-  const { stream } = useSSE();
+  const { streamingThreads } = useSSE();
   
   const [showIntro, setShowIntro] = useState(true);
+  const [isCreatingThread, setIsCreatingThread] = useState(false);
 
   // 로그인 체크
   useEffect(() => {
@@ -69,30 +69,27 @@ export const Threads: React.FC = () => {
       return;
     }
 
-    setShowIntro(false);
-
-    const requestBody = {
-      user_id: userId,
-      user_message: message,
-      // thread_id 없음 → 백엔드에서 새로 생성
-    };
+    setIsCreatingThread(true);
 
     try {
-      // SSE 이벤트 핸들러
-      const handleSSEEvent = (event: SSEEvent) => {
-        if (event.type === 'thread') {
-          // 새 thread 생성됨 → 해당 페이지로 이동
-          const newThreadId = event.thread_id;
-          console.log('New thread created:', newThreadId);
-          navigate(`/chat/${newThreadId}`, { replace: true });
-        }
-      };
-
-      await stream('new', requestBody, handleSSEEvent);
+      // 1. 빈 thread만 먼저 생성
+      const newThread = await createThread(userId);
+      
+      if (newThread) {
+        console.log('New thread created:', newThread.thread_id);
+        
+        // 2. 메시지와 함께 Chat 페이지로 이동
+        navigate(`/chat/${newThread.thread_id}`, { 
+          state: { initialMessage: message },
+          replace: true
+        });
+      } else {
+        throw new Error('Failed to create thread');
+      }
     } catch (error) {
-      console.error('Stream error:', error);
-      alert('스트리밍 중 오류가 발생했습니다.');
-      setShowIntro(true);
+      console.error('Error creating thread:', error);
+      alert('Thread 생성에 실패했습니다.');
+      setIsCreatingThread(false);
     }
   };
 
@@ -101,6 +98,7 @@ export const Threads: React.FC = () => {
       <Sidebar
         threads={threads}
         currentThreadId={null}
+        streamingThreads={streamingThreads}
         onThreadSelect={handleThreadSelect}
         onNewThread={handleNewThread}
         onGoHome={handleGoHome}
@@ -109,7 +107,7 @@ export const Threads: React.FC = () => {
       <main>
         {showIntro ? (
           <IntroSection />
-        ) : (
+        ) : isCreatingThread ? (
           <div className="chat-section">
             <div className="loading-message" style={{ 
               display: 'flex', 
@@ -119,15 +117,15 @@ export const Threads: React.FC = () => {
               fontSize: '1.1rem',
               color: '#666'
             }}>
-              새 대화를 시작하는 중...
+              새 대화를 생성하는 중...
             </div>
           </div>
-        )}
+        ) : null}
       </main>
 
       <InputSection 
         onSend={handleSendMessage} 
-        disabled={false}
+        disabled={isCreatingThread}
         isStreaming={false}
       />
     </>

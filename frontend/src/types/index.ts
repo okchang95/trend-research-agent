@@ -30,6 +30,7 @@ export interface SSEEvent {
 export interface ThreadEvent extends SSEEvent {
   type: 'thread';
   thread_id: string;
+  title?: string;
 }
 
 export interface SessionEvent extends SSEEvent {

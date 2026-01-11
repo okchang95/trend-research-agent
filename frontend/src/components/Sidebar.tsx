@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 interface SidebarProps {
   threads: Thread[];
   currentThreadId: string | null;
+  streamingThreads: Set<string>;
   onThreadSelect: (threadId: string) => void;
   onNewThread: () => void;
   onGoHome: () => void;
@@ -13,6 +14,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   threads,
   currentThreadId,
+  streamingThreads,
   onThreadSelect,
   onNewThread,
   onGoHome,
@@ -138,15 +140,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Thread가 없습니다.
               </div>
             ) : (
-              threads.map((thread) => (
-                <div
-                  key={thread.thread_id}
-                  className={`thread-item ${currentThreadId === thread.thread_id ? 'active' : ''}`}
-                  onClick={() => handleThreadClick(thread.thread_id)}
-                >
-                  <div className="thread-title">{thread.title}</div>
-                </div>
-              ))
+              threads.map((thread) => {
+                const isActive = currentThreadId === thread.thread_id;
+                const isStreaming = streamingThreads.has(thread.thread_id);
+                const isGenerating = thread.status === 'generating';
+                
+                return (
+                  <div
+                    key={thread.thread_id}
+                    className={`thread-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleThreadClick(thread.thread_id)}
+                  >
+                    <div className="thread-title">{thread.title}</div>
+                    {(isStreaming || isGenerating) && (
+                      <div className="thread-status">
+                        <span className="loading-spinner">⏳</span>
+                        {isStreaming ? ' 스트리밍 중' : ' 실행 중'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
