@@ -106,7 +106,7 @@ export const Threads: React.FC = () => {
 
       <main>
         {showIntro ? (
-          <IntroSection />
+          <IntroSection onExampleClick={handleSendMessage} />
         ) : isCreatingThread ? (
           <div className="chat-section">
             <div className="loading-message" style={{ 

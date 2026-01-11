@@ -622,6 +622,97 @@ main {
     margin-top: 20px;
 }
 
+/* 사용법 섹션 */
+.how-to-use {
+    margin: 30px 0 20px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    color: white;
+}
+
+.how-to-use h3 {
+    font-size: 1.3rem;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.how-to-description {
+    font-size: 1rem;
+    margin: 0;
+    line-height: 1.6;
+    opacity: 0.95;
+}
+
+/* 예시 카드 그리드 */
+.example-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 30px 0;
+}
+
+.example-card {
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+}
+
+.example-card:hover {
+    border-color: #667eea;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(102, 126, 234, 0.15);
+}
+
+.example-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+}
+
+.example-content h4 {
+    font-size: 1.1rem;
+    color: #333;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+}
+
+.example-query {
+    font-size: 0.9rem;
+    color: #667eea;
+    margin: 0 0 8px 0;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.example-description {
+    font-size: 0.85rem;
+    color: #999;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* 간단한 기능 배지 */
+.intro-features-compact {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 30px;
+}
+
+.feature-badge {
+    background: #f8f9fa;
+    color: #666;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
 /* 대화 섹션 */
 .chat-section {
     width: 100%;
@@ -1305,6 +1396,59 @@ main {
   /* 기능 설명 크기 조정 */
   .feature-item p {
     font-size: 0.95rem;
+  }
+
+  /* 사용법 섹션 모바일 */
+  .how-to-use {
+    margin: 20px 0 15px 0;
+    padding: 15px;
+  }
+
+  .how-to-use h3 {
+    font-size: 1.1rem;
+  }
+
+  .how-to-description {
+    font-size: 0.9rem;
+  }
+
+  /* 예시 카드 모바일 - 1열로 배치 */
+  .example-cards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .example-card {
+    padding: 15px;
+  }
+
+  .example-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+  }
+
+  .example-content h4 {
+    font-size: 1rem;
+  }
+
+  .example-query {
+    font-size: 0.85rem;
+  }
+
+  .example-description {
+    font-size: 0.8rem;
+  }
+
+  /* 기능 배지 모바일 */
+  .intro-features-compact {
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .feature-badge {
+    padding: 6px 12px;
+    font-size: 0.8rem;
   }
 
   /* 채팅 섹션 최대 너비 제거 */
