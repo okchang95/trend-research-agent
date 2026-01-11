@@ -32,6 +32,7 @@ class ChatMessageResponse(BaseModel):
     thread_id: str
     role: MessageRole
     message: str
+    ended_node: Optional[str] = None
     findings: Optional[List[dict]] = None
     timestamp: datetime
 

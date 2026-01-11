@@ -143,10 +143,21 @@ async def create_thread(
 @router.get("/threads/{thread_id}/messages")
 async def get_messages_by_thread_id(
     thread_id: str,
-    service: ChatMessageService = Depends(get_chat_message_service),
+    user_id: str,
+    message_service: ChatMessageService = Depends(get_chat_message_service),
+    thread_service: ChatThreadService = Depends(get_chat_thread_service),
 ):
     try:
-        result = await service.get_messages_by_thread_id(thread_id)
+        # Thread 소유권 검증
+        try:
+            thread = await thread_service.get_thread_by_id(thread_id, user_id)
+            if not thread:
+                return CommonResponse.fail_response(message="Thread not found")
+        except ValueError as e:
+            return CommonResponse.fail_response(message=str(e))
+        
+        # 권한이 확인되면 메시지 조회
+        result = await message_service.get_messages_by_thread_id(thread_id)
         return CommonResponse.success_response(
             message="Messages retrieved successfully",
             data=result,

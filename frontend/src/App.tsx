@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
 import { Landing } from './pages/Landing';
+import { Threads } from './pages/Threads';
 import { Chat } from './pages/Chat';
 import './styles.css';
 
@@ -27,7 +28,8 @@ function App() {
         <ChatProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat" element={<Threads />} />
+            <Route path="/chat/:threadId" element={<Chat />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ChatProvider>

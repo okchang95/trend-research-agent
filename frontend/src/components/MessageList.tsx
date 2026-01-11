@@ -123,8 +123,8 @@ export const MessageList: React.FC<MessageListProps> = ({
       {messages.map((msg, index) => (
         <div key={index}>
           <Message role={msg.role} content={msg.message} />
-          {/* 저장된 findings 표시 (assistant 메시지에만) */}
-          {msg.role === 'assistant' && msg.findings && msg.findings.length > 0 && (
+          {/* writer 노드에서 종료된 메시지에만 findings 표시 */}
+          {msg.role === 'assistant' && msg.ended_node === 'writer' && msg.findings && msg.findings.length > 0 && (
             <div className="message assistant-message">
               <div className="message-content">
                 <div className="message-text">

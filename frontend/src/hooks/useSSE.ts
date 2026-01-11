@@ -2,36 +2,66 @@ import { useState, useCallback, useRef } from 'react';
 import { API_STREAM_URL } from '../utils/env';
 import { SSEEvent } from '../types';
 
+interface StreamState {
+  abortController: AbortController;
+}
+
 interface UseSSEReturn {
-  isStreaming: boolean;
+  streamingThreads: Set<string>;
+  isThreadStreaming: (threadId: string | null) => boolean;
   error: string | null;
-  stream: (requestBody: any, onEvent: (event: SSEEvent) => void) => Promise<void>;
-  cancelStream: () => void;
+  stream: (threadId: string, requestBody: any, onEvent: (event: SSEEvent) => void) => Promise<void>;
+  cancelStream: (threadId: string) => void;
+  cancelAllStreams: () => void;
 }
 
 export const useSSE = (): UseSSEReturn => {
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingThreads, setStreamingThreads] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamStatesRef = useRef<Map<string, StreamState>>(new Map());
 
-  const cancelStream = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setIsStreaming(false);
+  const isThreadStreaming = useCallback((threadId: string | null) => {
+    if (!threadId) return false;
+    return streamingThreads.has(threadId);
+  }, [streamingThreads]);
+
+  const cancelStream = useCallback((threadId: string) => {
+    const state = streamStatesRef.current.get(threadId);
+    if (state) {
+      state.abortController.abort();
+      streamStatesRef.current.delete(threadId);
+      
+      setStreamingThreads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(threadId);
+        return newSet;
+      });
     }
   }, []);
 
-  const stream = useCallback(async (requestBody: any, onEvent: (event: SSEEvent) => void) => {
-    // 기존 스트림이 있으면 취소
-    cancelStream();
+  const cancelAllStreams = useCallback(() => {
+    streamStatesRef.current.forEach((state) => {
+      state.abortController.abort();
+    });
+    streamStatesRef.current.clear();
+    setStreamingThreads(new Set());
+  }, []);
 
-    setIsStreaming(true);
-    setError(null);
+  const stream = useCallback(async (
+    threadId: string,
+    requestBody: any, 
+    onEvent: (event: SSEEvent) => void
+  ) => {
+    // 해당 thread의 기존 스트림이 있으면 취소
+    if (streamStatesRef.current.has(threadId)) {
+      cancelStream(threadId);
+    }
 
-    // 새로운 AbortController 생성
     const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    streamStatesRef.current.set(threadId, { abortController });
+
+    setStreamingThreads(prev => new Set(prev).add(threadId));
+    setError(null);
 
     try {
       const response = await fetch(API_STREAM_URL, {
@@ -95,22 +125,28 @@ export const useSSE = (): UseSSEReturn => {
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Stream cancelled');
+        console.log(`Stream cancelled for thread ${threadId}`);
       } else {
         console.error('Stream error:', err);
         setError(err.message || 'Unknown error occurred');
         throw err;
       }
     } finally {
-      setIsStreaming(false);
-      abortControllerRef.current = null;
+      streamStatesRef.current.delete(threadId);
+      setStreamingThreads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(threadId);
+        return newSet;
+      });
     }
   }, [cancelStream]);
 
   return {
-    isStreaming,
+    streamingThreads,
+    isThreadStreaming,
     error,
     stream,
     cancelStream,
+    cancelAllStreams,
   };
 };

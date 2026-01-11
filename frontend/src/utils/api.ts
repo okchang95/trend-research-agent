@@ -100,9 +100,9 @@ export const createThread = async (userId: string): Promise<Thread | null> => {
 /**
  * Thread 메시지 조회
  */
-export const getThreadMessages = async (threadId: string): Promise<Message[]> => {
+export const getThreadMessages = async (threadId: string, userId: string): Promise<Message[]> => {
   try {
-    const response = await fetch(`${API_THREADS_URL}/${threadId}/messages`);
+    const response = await fetch(`${API_THREADS_URL}/${threadId}/messages?user_id=${encodeURIComponent(userId)}`);
     const result: ApiResponse<Message[]> = await response.json();
     
     if (result.success && result.data) {

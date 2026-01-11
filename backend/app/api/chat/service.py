@@ -46,6 +46,31 @@ class ChatThreadService:
             for thread in threads
         ]
 
+    async def get_thread_by_id(self, thread_id: str, user_id: str = None):
+        """
+        Thread 조회 (권한 검증 포함)
+
+        Args:
+            thread_id: Thread ID
+            user_id: User ID (선택, 제공 시 권한 검증)
+
+        Returns:
+            Thread document or None
+
+        Raises:
+            ValueError: 권한이 없을 때
+        """
+        thread = await self._repo.get_by_oid(thread_id)
+
+        if not thread:
+            return None
+
+        # user_id가 제공된 경우 권한 검증
+        if user_id and str(thread["user_id"]) != user_id:
+            raise ValueError("You don't have permission to access this thread")
+
+        return thread
+
     async def create_thread(self, payload: ChatThreadCreate):
         requested_at = datetime.now(tz=ZoneInfo("Asia/Seoul"))
         user_id = payload.user_id
@@ -86,6 +111,7 @@ class ChatMessageService:
                 thread_id=str(message["thread_id"]),
                 role=message["role"],
                 message=message["message"],
+                ended_node=message.get("ended_node", None),
                 findings=message.get("findings", None),
                 timestamp=message["timestamp"],
             )
@@ -212,7 +238,28 @@ class ChatService:
                 thread_id = await self._repo_chat_thread.create(thread)
                 thread["_id"] = thread_id
             else:
+                # 기존 thread 사용 시 권한 검증
                 thread = await self._repo_chat_thread.get_by_oid(thread_id)
+
+                if not thread:
+                    logger.error(f"Thread {thread_id} not found")
+                    await event_queue.put(
+                        {"type": "error", "error": "Thread not found"}
+                    )
+                    return
+
+                # 권한 검증: thread의 user_id와 요청한 user_id가 일치하는지 확인
+                if str(thread["user_id"]) != user_id:
+                    logger.error(
+                        f"User {user_id} attempted to access thread {thread_id} owned by {thread['user_id']}"
+                    )
+                    await event_queue.put(
+                        {
+                            "type": "error",
+                            "error": "You don't have permission to access this thread",
+                        }
+                    )
+                    return
 
             # --------------------------------------------------------------------------------------------
             # ★ Task 등록 (thread_id를 알게 된 직후 바로 등록 - 중지 버튼이 즉시 작동하도록)
