@@ -251,7 +251,6 @@ class ChatThreadRepository:
 | `POST` | `/stream` | SSE 스트리밍 채팅 |
 | `GET` | `/threads` | Thread 목록 조회 |
 | `POST` | `/threads` | Thread 생성 |
-| `DELETE` | `/threads/{id}` | Thread 삭제 |
 | `GET` | `/threads/{id}/messages` | 메시지 조회 |
 | `POST` | `/cancel` | 응답 중지 메시지 저장 |
 | `POST` | `/cancel-task` | 백그라운드 작업 취소 |
@@ -271,7 +270,8 @@ class ChatThreadRepository:
 | `node_complete` | 노드 완료 알림 |
 | `research_status` | 리서치 진행 상황 |
 | `research_findings` | 조사 결과 |
-| `text_chunk` | 스트리밍 텍스트 청크 |
+| `text_chunk` | 스트리밍 텍스트 청크 (char 필드) |
+| `scoping_complete` | Scoping 노드 응답 완료 |
 | `final` | 최종 결과 |
 | `error` | 에러 발생 |
 
